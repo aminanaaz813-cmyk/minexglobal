@@ -122,10 +122,15 @@ const DepositPage = () => {
             <div className="glass rounded-xl p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 hover:from-blue-500/15 hover:to-purple-500/15 transition-all" data-testid="usdt-payment-method">
               <h3 className="text-lg font-bold text-white mb-4">USDT Payment</h3>
               <div className="space-y-4">
-                {settings?.show_qr_code !== false && (
+                {/* Show uploaded QR code if available, otherwise generate one */}
+                {(settings?.qr_code_image || settings?.usdt_wallet_address) && (
                   <div className="flex justify-center mb-4">
                     <div className="p-4 bg-white rounded-xl">
-                      <QRCodeSVG value={settings?.usdt_wallet_address || 'TXyz123SampleUSDTAddress456789'} size={180} />
+                      {settings?.qr_code_image ? (
+                        <img src={settings.qr_code_image} alt="Payment QR Code" className="w-[180px] h-[180px] object-contain" />
+                      ) : (
+                        <QRCodeSVG value={settings?.usdt_wallet_address || ''} size={180} />
+                      )}
                     </div>
                   </div>
                 )}
