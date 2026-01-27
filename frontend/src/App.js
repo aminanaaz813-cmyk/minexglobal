@@ -122,6 +122,11 @@ function App() {
                 <UserLayout><ProfilePage /></UserLayout>
               </PrivateRoute>
             } />
+            <Route path="/transactions" element={
+              <PrivateRoute>
+                <UserLayout><TransactionsPage /></UserLayout>
+              </PrivateRoute>
+            } />
 
             <Route path="/admin" element={
               <PrivateRoute adminOnly>
