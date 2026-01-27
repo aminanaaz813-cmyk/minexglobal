@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Wallet, Users, Gift, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { TrendingUp, Wallet, Users, Gift, ArrowUpRight, DollarSign, Zap, Target } from 'lucide-react';
 import { userAPI, membershipAPI } from '@/api';
 import { formatCurrency } from '@/utils';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 
 const UserDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -41,119 +42,151 @@ const UserDashboard = () => {
   const nextPackage = packages.find(p => p.level === stats?.current_level + 1);
 
   return (
-    <div className="space-y-8" data-testid="user-dashboard">
+    <div className="space-y-6 md:space-y-8" data-testid="user-dashboard">
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2" data-testid="dashboard-title">Dashboard</h1>
-        <p className="text-gray-400">Welcome back! Here's your portfolio overview</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" data-testid="dashboard-title">Dashboard</h1>
+        <p className="text-gray-400 text-sm md:text-base">Welcome back! Here's your portfolio overview</p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        {/* Withdrawable Balance */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-2xl p-6 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/20"
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-blue-500/10 to-cyan-500/10"
           data-testid="total-balance-card"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-500/20 rounded-xl">
-              <Wallet className="w-6 h-6 text-blue-300" />
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 md:p-3 bg-blue-500/20 rounded-lg">
+              <Wallet className="w-5 h-5 md:w-6 md:h-6 text-blue-300" />
             </div>
-            <ArrowUpRight className="w-5 h-5 text-green-400" />
+            <ArrowUpRight className="w-4 h-4 text-green-400" />
           </div>
-          <div className="text-2xl font-bold text-white mb-1 font-mono" data-testid="total-balance-value">
+          <div className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" data-testid="total-balance-value">
             {formatCurrency(stats?.total_balance || 0)}
           </div>
-          <div className="text-sm text-blue-200">Total Balance</div>
+          <div className="text-xs md:text-sm text-blue-200">Withdrawable</div>
         </motion.div>
 
+        {/* ROI Earnings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass rounded-2xl p-6 bg-gradient-to-br from-green-500/20 to-emerald-500/20 hover:from-green-500/30 hover:to-emerald-500/30 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20"
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-green-500/10 to-emerald-500/10"
           data-testid="roi-balance-card"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-green-500/20 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-green-300" />
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 md:p-3 bg-green-500/20 rounded-lg">
+              <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-green-300" />
             </div>
-            <span className="text-green-300 text-sm font-bold bg-green-500/20 px-3 py-1 rounded-full">{stats?.daily_roi_percentage}%</span>
+            <span className="text-green-300 text-xs font-bold bg-green-500/20 px-2 py-0.5 rounded-full">{stats?.daily_roi_percentage}%</span>
           </div>
-          <div className="text-2xl font-bold text-white mb-1 font-mono" data-testid="roi-balance-value">
+          <div className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" data-testid="roi-balance-value">
             {formatCurrency(stats?.roi_balance || 0)}
           </div>
-          <div className="text-sm text-green-200">ROI Earnings</div>
+          <div className="text-xs md:text-sm text-green-200">ROI Earned</div>
         </motion.div>
 
+        {/* Commission Balance */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="glass rounded-2xl p-6 bg-gradient-to-br from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20"
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-purple-500/10 to-pink-500/10"
           data-testid="commission-balance-card"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-purple-500/20 rounded-xl">
-              <Gift className="w-6 h-6 text-purple-300" />
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 md:p-3 bg-purple-500/20 rounded-lg">
+              <Gift className="w-5 h-5 md:w-6 md:h-6 text-purple-300" />
             </div>
-            <ArrowUpRight className="w-5 h-5 text-green-400" />
+            <ArrowUpRight className="w-4 h-4 text-green-400" />
           </div>
-          <div className="text-2xl font-bold text-white mb-1 font-mono" data-testid="commission-balance-value">
+          <div className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" data-testid="commission-balance-value">
             {formatCurrency(stats?.commission_balance || 0)}
           </div>
-          <div className="text-sm text-purple-200">Commission Earned</div>
+          <div className="text-xs md:text-sm text-purple-200">Commissions</div>
         </motion.div>
 
+        {/* Team Size */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="glass rounded-2xl p-6 bg-gradient-to-br from-orange-500/20 to-yellow-500/20 hover:from-orange-500/30 hover:to-yellow-500/30 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-orange-500/20"
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-orange-500/10 to-yellow-500/10"
           data-testid="team-card"
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-orange-500/20 rounded-xl">
-              <Users className="w-6 h-6 text-orange-300" />
+          <div className="flex items-center justify-between mb-3">
+            <div className="p-2 md:p-3 bg-orange-500/20 rounded-lg">
+              <Users className="w-5 h-5 md:w-6 md:h-6 text-orange-300" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-white mb-1" data-testid="team-count-value">
+          <div className="text-xl md:text-2xl font-bold text-white mb-1" data-testid="team-count-value">
             {stats?.direct_referrals || 0} / {stats?.indirect_referrals || 0}
           </div>
-          <div className="text-sm text-orange-200">Direct / Indirect</div>
+          <div className="text-xs md:text-sm text-orange-200">Direct / Indirect</div>
         </motion.div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="glass rounded-2xl p-6" data-testid="current-level-card">
-          <h2 className="text-xl font-bold text-white mb-6">Current Level</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+      {/* Secondary Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+        <div className="glass rounded-xl p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-4 h-4 text-blue-400" />
+            <span className="text-xs md:text-sm text-gray-400">Total Investment</span>
+          </div>
+          <div className="text-lg md:text-xl font-bold text-white font-mono">{formatCurrency(stats?.total_investment || 0)}</div>
+        </div>
+        <div className="glass rounded-xl p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="w-4 h-4 text-yellow-400" />
+            <span className="text-xs md:text-sm text-gray-400">Active Staking</span>
+          </div>
+          <div className="text-lg md:text-xl font-bold text-white font-mono">{formatCurrency(stats?.active_staking || 0)}</div>
+        </div>
+        <div className="glass rounded-xl p-4 md:p-5 col-span-2 md:col-span-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="w-4 h-4 text-green-400" />
+            <span className="text-xs md:text-sm text-gray-400">Current Level</span>
+          </div>
+          <div className="text-lg md:text-xl font-bold text-gradient">Level {stats?.current_level || 1}</div>
+        </div>
+      </div>
+
+      {/* Level & Progress Section */}
+      <div className="grid lg:grid-cols-2 gap-4 md:gap-5">
+        {/* Current Level Card */}
+        <div className="glass rounded-xl p-5 md:p-6" data-testid="current-level-card">
+          <h2 className="text-base md:text-lg font-bold text-white mb-4">Current Level Benefits</h2>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm md:text-base">
               <span className="text-gray-400">Level</span>
-              <span className="text-2xl font-bold text-gradient">Level {stats?.current_level}</span>
+              <span className="text-xl font-bold text-gradient">Level {stats?.current_level || 1}</span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between text-sm md:text-base">
               <span className="text-gray-400">Daily ROI</span>
               <span className="text-green-400 font-bold">{stats?.daily_roi_percentage}%</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-400">Total Investment</span>
-              <span className="text-white font-bold font-mono">{formatCurrency(stats?.total_investment || 0)}</span>
+            <div className="flex items-center justify-between text-sm md:text-base">
+              <span className="text-gray-400">Package</span>
+              <span className="text-white font-bold">{currentPackage?.name || `Level ${stats?.current_level}`}</span>
             </div>
-            {currentPackage && (
+            {currentPackage && currentPackage.level >= 2 && (
               <div className="border-t border-white/10 pt-4 mt-4">
-                <div className="text-sm text-gray-500 mb-2">Commission Rates</div>
+                <div className="text-xs text-gray-500 mb-3">Commission Rates</div>
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-400">{currentPackage.commission_lv_a}%</div>
-                    <div className="text-xs text-gray-500">Lv.A</div>
+                  <div className="text-center p-2 bg-blue-500/10 rounded-lg">
+                    <div className="text-base md:text-lg font-bold text-blue-400">{currentPackage.commission_direct || currentPackage.commission_lv_a || 0}%</div>
+                    <div className="text-xs text-gray-500">Direct</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-purple-400">{currentPackage.commission_lv_b}%</div>
-                    <div className="text-xs text-gray-500">Lv.B</div>
+                  <div className="text-center p-2 bg-purple-500/10 rounded-lg">
+                    <div className="text-base md:text-lg font-bold text-purple-400">{currentPackage.commission_level_2 || currentPackage.commission_lv_b || 0}%</div>
+                    <div className="text-xs text-gray-500">Lv.2</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-violet-400">{currentPackage.commission_lv_c}%</div>
-                    <div className="text-xs text-gray-500">Lv.C</div>
+                  <div className="text-center p-2 bg-violet-500/10 rounded-lg">
+                    <div className="text-base md:text-lg font-bold text-violet-400">{currentPackage.commission_level_3 || currentPackage.commission_lv_c || 0}%</div>
+                    <div className="text-xs text-gray-500">Lv.3</div>
                   </div>
                 </div>
               </div>
@@ -161,70 +194,79 @@ const UserDashboard = () => {
           </div>
         </div>
 
-        <div className="glass rounded-2xl p-6" data-testid="next-level-card">
-          <h2 className="text-xl font-bold text-white mb-6">Next Level Progress</h2>
+        {/* Next Level Progress */}
+        <div className="glass rounded-xl p-5 md:p-6" data-testid="next-level-card">
+          <h2 className="text-base md:text-lg font-bold text-white mb-4">Next Level Progress</h2>
           {nextPackage ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm md:text-base">
                 <span className="text-gray-400">Target Level</span>
-                <span className="text-2xl font-bold text-gradient">Level {nextPackage.level}</span>
+                <span className="text-xl font-bold text-gradient">Level {nextPackage.level}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Required Investment</span>
+              <div className="flex items-center justify-between text-sm md:text-base">
+                <span className="text-gray-400">Min Investment</span>
                 <span className="text-white font-bold font-mono">{formatCurrency(nextPackage.min_investment)}</span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between text-sm md:text-base">
                 <span className="text-gray-400">Direct Referrals</span>
-                <span className="text-white font-bold">{stats?.direct_referrals} / {nextPackage.direct_required}</span>
+                <span className={`font-bold ${stats?.direct_referrals >= nextPackage.direct_required ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {stats?.direct_referrals || 0} / {nextPackage.direct_required || 0}
+                </span>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between text-sm md:text-base">
                 <span className="text-gray-400">Indirect Referrals</span>
-                <span className="text-white font-bold">{stats?.indirect_referrals} / {nextPackage.indirect_required}</span>
+                <span className={`font-bold ${stats?.indirect_referrals >= (nextPackage.level_2_required || nextPackage.indirect_required || 0) ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {stats?.indirect_referrals || 0} / {nextPackage.level_2_required || nextPackage.indirect_required || 0}
+                </span>
               </div>
-              <div className="border-t border-white/10 pt-4 mt-4">
-                <div className="text-sm text-gray-500 mb-2">Unlock Commission Rates</div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-blue-400">{nextPackage.commission_lv_a}%</div>
-                    <div className="text-xs text-gray-500">Lv.A</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-purple-400">{nextPackage.commission_lv_b}%</div>
-                    <div className="text-xs text-gray-500">Lv.B</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-lg font-bold text-violet-400">{nextPackage.commission_lv_c}%</div>
-                    <div className="text-xs text-gray-500">Lv.C</div>
+              {nextPackage.level >= 2 && (
+                <div className="border-t border-white/10 pt-4 mt-4">
+                  <div className="text-xs text-gray-500 mb-3">Unlock Commission Rates</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center p-2 bg-blue-500/10 rounded-lg">
+                      <div className="text-base md:text-lg font-bold text-blue-400">{nextPackage.commission_direct || nextPackage.commission_lv_a || 0}%</div>
+                      <div className="text-xs text-gray-500">Direct</div>
+                    </div>
+                    <div className="text-center p-2 bg-purple-500/10 rounded-lg">
+                      <div className="text-base md:text-lg font-bold text-purple-400">{nextPackage.commission_level_2 || nextPackage.commission_lv_b || 0}%</div>
+                      <div className="text-xs text-gray-500">Lv.2</div>
+                    </div>
+                    <div className="text-center p-2 bg-violet-500/10 rounded-lg">
+                      <div className="text-base md:text-lg font-bold text-violet-400">{nextPackage.commission_level_3 || nextPackage.commission_lv_c || 0}%</div>
+                      <div className="text-xs text-gray-500">Lv.3</div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <div className="text-4xl mb-4">🏆</div>
-              <div className="text-lg text-white font-bold">Maximum Level Reached!</div>
-              <div className="text-gray-400 text-sm mt-2">You're at the highest tier</div>
+            <div className="text-center py-6">
+              <div className="text-4xl mb-3">🏆</div>
+              <div className="text-lg text-white font-bold">Maximum Level!</div>
+              <div className="text-gray-400 text-sm mt-1">You're at the highest tier</div>
             </div>
           )}
         </div>
       </div>
 
-      <div className="glass rounded-2xl p-6" data-testid="quick-stats-card">
-        <h2 className="text-xl font-bold text-white mb-6">Quick Stats</h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          <div>
-            <div className="text-sm text-gray-400 mb-2">Total Commissions</div>
-            <div className="text-2xl font-bold text-white font-mono">{formatCurrency(stats?.total_commissions || 0)}</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-400 mb-2">Pending Withdrawals</div>
-            <div className="text-2xl font-bold text-white">{stats?.pending_withdrawals || 0}</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-400 mb-2">Team Size</div>
-            <div className="text-2xl font-bold text-white">{(stats?.direct_referrals || 0) + (stats?.indirect_referrals || 0)}</div>
-          </div>
-        </div>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <Link to="/deposit" className="glass rounded-xl p-4 text-center hover:bg-white/10 transition-colors">
+          <DollarSign className="w-8 h-8 text-green-400 mx-auto mb-2" />
+          <span className="text-white font-bold text-sm">Deposit</span>
+        </Link>
+        <Link to="/staking" className="glass rounded-xl p-4 text-center hover:bg-white/10 transition-colors">
+          <Zap className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+          <span className="text-white font-bold text-sm">Invest</span>
+        </Link>
+        <Link to="/transactions" className="glass rounded-xl p-4 text-center hover:bg-white/10 transition-colors">
+          <TrendingUp className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+          <span className="text-white font-bold text-sm">History</span>
+        </Link>
+        <Link to="/team" className="glass rounded-xl p-4 text-center hover:bg-white/10 transition-colors">
+          <Users className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+          <span className="text-white font-bold text-sm">Team</span>
+        </Link>
       </div>
     </div>
   );
