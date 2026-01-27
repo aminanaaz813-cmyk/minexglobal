@@ -16,6 +16,7 @@ import StakingPage from '@/pages/user/StakingPage';
 import TeamPage from '@/pages/user/TeamPage';
 import CommissionsPage from '@/pages/user/CommissionsPage';
 import ProfilePage from '@/pages/user/ProfilePage';
+import TransactionsPage from '@/pages/user/TransactionsPage';
 
 import AdminLayout from '@/layouts/AdminLayout';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
