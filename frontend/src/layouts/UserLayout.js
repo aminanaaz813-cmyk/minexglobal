@@ -12,7 +12,8 @@ import {
   User, 
   LogOut, 
   Menu, 
-  X 
+  X,
+  History
 } from 'lucide-react';
 
 const UserLayout = ({ children }) => {
@@ -25,7 +26,8 @@ const UserLayout = ({ children }) => {
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/deposit', icon: ArrowDownToLine, label: 'Deposit' },
     { path: '/withdraw', icon: ArrowUpFromLine, label: 'Withdraw' },
-    { path: '/staking', icon: Zap, label: 'Staking' },
+    { path: '/staking', icon: Zap, label: 'Invest' },
+    { path: '/transactions', icon: History, label: 'Transactions' },
     { path: '/team', icon: Users, label: 'My Team' },
     { path: '/commissions', icon: Gift, label: 'Commissions' },
     { path: '/profile', icon: User, label: 'Profile' },
