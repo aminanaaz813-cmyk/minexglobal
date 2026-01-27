@@ -1149,75 +1149,58 @@ async def upload_qr_code(file: UploadFile = File(...), admin: User = Depends(get
     
     return {"message": "QR code uploaded", "qr_code_image": qr_url}
 
-# Admin ROI Calculation
+# Admin ROI Calculation (Manual trigger)
 @api_router.post("/admin/calculate-roi")
 async def calculate_daily_roi(admin: User = Depends(get_admin_user)):
-    """Calculate and distribute daily ROI to all active stakers"""
-    active_stakes = await db.staking.find({"status": StakingStatus.ACTIVE}, {"_id": 0}).to_list(10000)
+    """Manually trigger ROI distribution (also runs automatically daily)"""
+    result = await roi_scheduler.distribute_daily_roi()
+    return result
+
+# ROI Scheduler Status
+@api_router.get("/admin/roi-scheduler/status")
+async def get_roi_scheduler_status(admin: User = Depends(get_admin_user)):
+    """Get ROI scheduler status"""
+    return roi_scheduler.get_status()
+
+# Set ROI Schedule Time
+@api_router.post("/admin/roi-scheduler/set-time")
+async def set_roi_schedule_time(hour: int = 0, minute: int = 0, admin: User = Depends(get_admin_user)):
+    """Set the daily ROI distribution time (UTC)"""
+    if hour < 0 or hour > 23:
+        raise HTTPException(status_code=400, detail="Hour must be between 0 and 23")
+    if minute < 0 or minute > 59:
+        raise HTTPException(status_code=400, detail="Minute must be between 0 and 59")
     
-    roi_count = 0
-    total_roi_distributed = 0.0
+    roi_scheduler.set_schedule(hour, minute)
     
-    for stake in active_stakes:
-        user_id = stake["user_id"]
-        amount = stake["amount"]
-        daily_roi = stake.get("daily_roi", 0)
-        
-        if daily_roi <= 0:
-            continue
-        
-        # Check if package duration completed
-        end_date = datetime.fromisoformat(stake["end_date"].replace("Z", "+00:00"))
-        if datetime.now(timezone.utc) >= end_date:
-            # Mark as completed and return capital
-            if not stake.get("capital_returned", False):
-                await db.staking.update_one(
-                    {"staking_entry_id": stake["staking_entry_id"]},
-                    {"$set": {"status": StakingStatus.COMPLETED, "capital_returned": True}}
-                )
-                await db.users.update_one(
-                    {"user_id": user_id},
-                    {"$inc": {"wallet_balance": amount}}  # Return capital
-                )
-            continue
-        
-        roi_amount = amount * (daily_roi / 100)
-        
-        roi_doc = {
-            "transaction_id": str(uuid.uuid4()),
-            "user_id": user_id,
-            "staking_entry_id": stake["staking_entry_id"],
-            "amount": roi_amount,
-            "roi_percentage": daily_roi,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.roi_transactions.insert_one(roi_doc)
-        
-        await db.users.update_one(
-            {"user_id": user_id},
-            {"$inc": {
-                "roi_balance": roi_amount,
-                "wallet_balance": roi_amount
-            },
-            "$set": {
-                "last_roi_date": datetime.now(timezone.utc).isoformat()
-            }}
-        )
-        
-        # Update staking entry
-        await db.staking.update_one(
-            {"staking_entry_id": stake["staking_entry_id"]},
-            {"$inc": {"total_earned": roi_amount},
-             "$set": {"last_yield_date": datetime.now(timezone.utc).isoformat()}}
-        )
-        
-        roi_count += 1
-        total_roi_distributed += roi_amount
+    # Save to settings
+    await db.admin_settings.update_one(
+        {"settings_id": "default"},
+        {"$set": {
+            "roi_distribution_hour": hour,
+            "roi_distribution_minute": minute
+        }},
+        upsert=True
+    )
     
     return {
-        "message": f"ROI calculated for {roi_count} active stakes",
-        "total_users_processed": roi_count,
-        "total_roi_distributed": total_roi_distributed
+        "message": f"ROI distribution scheduled for {hour:02d}:{minute:02d} UTC daily",
+        "status": roi_scheduler.get_status()
+    }
+
+# Get Email Logs
+@api_router.get("/admin/email-logs")
+async def get_email_logs(admin: User = Depends(get_admin_user), limit: int = 100):
+    """Get recent email logs"""
+    logs = await db.email_logs.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return logs
+
+# Get System Logs (ROI distributions, etc.)
+@api_router.get("/admin/system-logs")
+async def get_system_logs(admin: User = Depends(get_admin_user), limit: int = 50):
+    """Get system logs including ROI distributions"""
+    logs = await db.system_logs.find({}, {"_id": 0}).sort("run_time", -1).to_list(limit)
+    return logs
     }
 
 # ============== INCLUDE ROUTER AND MIDDLEWARE ==============
