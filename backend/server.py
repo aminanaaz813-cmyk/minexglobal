@@ -24,6 +24,7 @@ from models import (
 from auth import verify_password, get_password_hash, create_access_token, decode_access_token
 from email_service import email_service
 from crypto_service import crypto_service
+from roi_scheduler import roi_scheduler
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -31,6 +32,10 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Set database reference for email service and ROI scheduler
+email_service.set_db(db)
+roi_scheduler.set_dependencies(db, email_service)
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
