@@ -1454,11 +1454,23 @@ async def startup_event():
             "community_star_target": 28.0,
             "community_star_bonus_min": 100.0,
             "community_star_bonus_max": 1000.0,
+            "roi_distribution_hour": 0,
+            "roi_distribution_minute": 0,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         await db.admin_settings.insert_one(default_settings)
         logger.info("Admin settings initialized")
+    else:
+        # Load ROI schedule from settings
+        roi_hour = settings_exists.get("roi_distribution_hour", 0)
+        roi_minute = settings_exists.get("roi_distribution_minute", 0)
+        roi_scheduler.set_schedule(roi_hour, roi_minute)
+    
+    # Start the automatic ROI scheduler
+    roi_scheduler.start()
+    logger.info("Automatic ROI scheduler started")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    roi_scheduler.stop()
     client.close()
