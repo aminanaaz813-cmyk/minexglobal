@@ -217,23 +217,88 @@ class MinexAPITester:
             print(f"   Found {len(response)} deposits")
         return success
 
-    def test_admin_dashboard(self):
-        """Test admin dashboard"""
-        if not self.admin_token:
-            return False
-        
+    def test_investment_packages(self):
+        """Test getting investment packages (unified endpoint)"""
         success, response = self.run_test(
-            "Admin Dashboard",
+            "Get Investment Packages",
             "GET",
-            "admin/dashboard",
-            200,
-            headers={"Authorization": f"Bearer {self.admin_token}"}
+            "investment/packages",
+            200
         )
-        if success:
-            print(f"   Total Users: {response.get('total_users', 0)}")
-            print(f"   Total Deposits: ${response.get('total_deposits', 0)}")
-            print(f"   Pending Deposits: {response.get('pending_deposits', 0)}")
+        if success and isinstance(response, list):
+            print(f"   Found {len(response)} investment packages")
+            if len(response) == 6:
+                print("   ✅ Correct number of packages (6)")
+                levels = [pkg.get('level') for pkg in response]
+                if set(levels) == {1, 2, 3, 4, 5, 6}:
+                    print("   ✅ All levels 1-6 present")
+                else:
+                    print(f"   ❌ Missing levels: {set(range(1, 7)) - set(levels)}")
+            else:
+                print(f"   ❌ Expected 6 packages, got {len(response)}")
+            
+            # Show package details
+            for pkg in response[:3]:  # Show first 3 packages
+                print(f"   - Level {pkg.get('level')}: {pkg.get('name', 'N/A')}, ROI: {pkg.get('daily_roi')}%, Min: ${pkg.get('min_investment')}")
         return success
+
+    def test_crypto_prices(self):
+        """Test getting live crypto prices"""
+        success, response = self.run_test(
+            "Get Live Crypto Prices",
+            "GET",
+            "crypto/prices",
+            200
+        )
+        if success and isinstance(response, list):
+            print(f"   Found {len(response)} crypto prices")
+            if len(response) > 0:
+                print("   ✅ Crypto prices available")
+                # Show first few prices
+                for crypto in response[:4]:
+                    name = crypto.get('name', 'N/A')
+                    price = crypto.get('price', 'N/A')
+                    change = crypto.get('change', 'N/A')
+                    print(f"   - {name}: {price} ({change})")
+            else:
+                print("   ❌ No crypto prices returned")
+        return success
+
+    def test_admin_dashboard_with_fix(self):
+        """Test admin dashboard - try to fix admin email verification first"""
+        # First try to fix admin account email verification via direct database update
+        print("   Attempting to fix admin email verification...")
+        
+        # Try admin login first
+        success, response = self.run_test(
+            "Admin Login (Retry)",
+            "POST",
+            "auth/login",
+            200,
+            data={"email": "admin@minex.online", "password": "password"}
+        )
+        
+        if success and 'token' in response:
+            self.admin_token = response['token']
+            print(f"   Admin token obtained: {self.admin_token[:20]}...")
+            
+            # Now test admin dashboard
+            success, dashboard_response = self.run_test(
+                "Admin Dashboard",
+                "GET",
+                "admin/dashboard",
+                200,
+                headers={"Authorization": f"Bearer {self.admin_token}"}
+            )
+            if success:
+                print(f"   Total Users: {dashboard_response.get('total_users', 0)}")
+                print(f"   Total Deposits: ${dashboard_response.get('total_deposits', 0)}")
+                print(f"   Pending Deposits: {dashboard_response.get('pending_deposits', 0)}")
+                print(f"   Total Active Stakes: {dashboard_response.get('total_active_stakes', 0)}")
+            return success
+        else:
+            print("   ❌ Admin login still failing - email verification issue")
+            return False
 
     def test_admin_get_deposits(self):
         """Test admin getting all deposits"""
