@@ -1214,7 +1214,7 @@ app.add_middleware(
 async def startup_event():
     logger.info("Starting MINEX GLOBAL application...")
     
-    # Create admin user if not exists
+    # Create/Update admin user
     admin_exists = await db.users.find_one({"email": "admin@minex.online"}, {"_id": 0})
     if not admin_exists:
         admin_doc = {
@@ -1239,6 +1239,46 @@ async def startup_event():
         }
         await db.users.insert_one(admin_doc)
         logger.info("Admin user created: admin@minex.online / password")
+    else:
+        # Ensure admin is email verified
+        await db.users.update_one(
+            {"email": "admin@minex.online"},
+            {"$set": {"is_email_verified": True}}
+        )
+        logger.info("Admin user email verification ensured")
+    
+    # Create/Update master user for testing referrals
+    master_exists = await db.users.find_one({"email": "masteruser@gmail.com"}, {"_id": 0})
+    if not master_exists:
+        master_doc = {
+            "user_id": str(uuid.uuid4()),
+            "email": "masteruser@gmail.com",
+            "full_name": "Master User",
+            "password_hash": get_password_hash("password"),
+            "role": UserRole.USER,
+            "level": 1,
+            "total_investment": 0.0,
+            "wallet_balance": 0.0,
+            "roi_balance": 0.0,
+            "commission_balance": 0.0,
+            "referral_code": "MASTER01",
+            "referred_by": None,
+            "direct_referrals": [],
+            "indirect_referrals": [],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_roi_date": None,
+            "is_active": True,
+            "is_email_verified": True
+        }
+        await db.users.insert_one(master_doc)
+        logger.info("Master user created: masteruser@gmail.com / password (Referral Code: MASTER01)")
+    else:
+        # Ensure master user is email verified
+        await db.users.update_one(
+            {"email": "masteruser@gmail.com"},
+            {"$set": {"is_email_verified": True}}
+        )
+        logger.info("Master user email verification ensured")
     
     # Initialize default investment packages based on user's image
     investment_count = await db.investment_packages.count_documents({})
