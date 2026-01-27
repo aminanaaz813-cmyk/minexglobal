@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Gift, TrendingUp } from 'lucide-react';
+import { Gift, TrendingUp, Users } from 'lucide-react';
 import { commissionAPI } from '@/api';
 import { formatCurrency, formatDateTime } from '@/utils';
 import { toast } from 'sonner';
 
 const CommissionsPage = () => {
-  const [data, setData] = useState({ commissions: [], summary: { lv_a: 0, lv_b: 0, lv_c: 0, total: 0 } });
+  const [data, setData] = useState({ 
+    commissions: [], 
+    summary: { 
+      level_1: 0, level_2: 0, level_3: 0, level_4: 0, level_5: 0, level_6: 0,
+      lv_a: 0, lv_b: 0, lv_c: 0, total: 0 
+    } 
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,124 +38,137 @@ const CommissionsPage = () => {
     );
   }
 
+  const getLevelColor = (level) => {
+    const colors = {
+      1: 'text-blue-400 bg-blue-500/10',
+      2: 'text-purple-400 bg-purple-500/10',
+      3: 'text-violet-400 bg-violet-500/10',
+      4: 'text-pink-400 bg-pink-500/10',
+      5: 'text-orange-400 bg-orange-500/10',
+      6: 'text-yellow-400 bg-yellow-500/10',
+    };
+    return colors[level] || colors[1];
+  };
+
   return (
-    <div className="space-y-8" data-testid="commissions-page">
+    <div className="space-y-6 md:space-y-8" data-testid="commissions-page">
       <div>
-        <h1 className="text-3xl font-bold text-white mb-2" data-testid="commissions-title">Commissions</h1>
-        <p className="text-gray-400">Track your earnings from referrals</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" data-testid="commissions-title">Commissions</h1>
+        <p className="text-gray-400 text-sm md:text-base">Track your earnings from referrals across 6 levels</p>
       </div>
 
-      <div className="grid md:grid-cols-4 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-2xl p-6"
-          data-testid="total-commission-card"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl">
-              <Gift className="w-6 h-6 text-purple-400" />
+      {/* Total Commission */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass rounded-xl p-5 md:p-6 bg-gradient-to-r from-purple-500/10 to-pink-500/10"
+        data-testid="total-commission-card"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Gift className="w-5 h-5 text-purple-400" />
+              <span className="text-sm text-gray-400">Total Commission Earned</span>
             </div>
-            <TrendingUp className="w-5 h-5 text-green-400" />
+            <div className="text-3xl md:text-4xl font-bold text-white font-mono" data-testid="total-commission-value">
+              {formatCurrency(data.summary.total)}
+            </div>
           </div>
-          <div className="text-2xl font-bold text-white mb-1 font-mono" data-testid="total-commission-value">
-            {formatCurrency(data.summary.total)}
+          <div className="hidden md:block">
+            <TrendingUp className="w-12 h-12 text-green-400" />
           </div>
-          <div className="text-sm text-gray-400">Total Earned</div>
-        </motion.div>
+        </div>
+      </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="glass rounded-2xl p-6"
-          data-testid="lv-a-card"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-bold text-blue-400">LEVEL A</div>
-          </div>
-          <div className="text-2xl font-bold text-white mb-1 font-mono">
-            {formatCurrency(data.summary.lv_a)}
-          </div>
-          <div className="text-sm text-gray-400">Direct Referrals</div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="glass rounded-2xl p-6"
-          data-testid="lv-b-card"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-bold text-purple-400">LEVEL B</div>
-          </div>
-          <div className="text-2xl font-bold text-white mb-1 font-mono">
-            {formatCurrency(data.summary.lv_b)}
-          </div>
-          <div className="text-sm text-gray-400">2nd Level</div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass rounded-2xl p-6"
-          data-testid="lv-c-card"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-bold text-violet-400">LEVEL C</div>
-          </div>
-          <div className="text-2xl font-bold text-white mb-1 font-mono">
-            {formatCurrency(data.summary.lv_c)}
-          </div>
-          <div className="text-sm text-gray-400">3rd Level</div>
-        </motion.div>
+      {/* 6-Level Commission Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+        {[1, 2, 3, 4, 5, 6].map((level, idx) => (
+          <motion.div
+            key={level}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            className="glass rounded-xl p-4"
+            data-testid={`level-${level}-card`}
+          >
+            <div className={`text-xs font-bold mb-2 px-2 py-1 rounded-full inline-block ${getLevelColor(level)}`}>
+              Level {level}
+            </div>
+            <div className="text-lg md:text-xl font-bold text-white font-mono">
+              {formatCurrency(data.summary[`level_${level}`] || 0)}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {level === 1 ? 'Direct' : `${level}nd Level`}
+            </div>
+          </motion.div>
+        ))}
       </div>
 
-      <div className="glass rounded-2xl p-8" data-testid="commission-history">
-        <h2 className="text-2xl font-bold text-white mb-6">Commission History</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left py-4 px-4 text-gray-400 font-medium">Date</th>
-                <th className="text-left py-4 px-4 text-gray-400 font-medium">Type</th>
-                <th className="text-left py-4 px-4 text-gray-400 font-medium">From User</th>
-                <th className="text-left py-4 px-4 text-gray-400 font-medium">Percentage</th>
-                <th className="text-left py-4 px-4 text-gray-400 font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.commissions.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-12 text-gray-500">
-                    No commissions earned yet
-                  </td>
-                </tr>
-              ) : (
-                data.commissions.map((commission) => (
-                  <tr key={commission.commission_id} className="border-b border-white/5 hover:bg-white/5" data-testid={`commission-row-${commission.commission_id}`}>
-                    <td className="py-4 px-4 text-gray-300">{formatDateTime(commission.created_at)}</td>
-                    <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                        commission.commission_type === 'LV_A' ? 'bg-blue-500/20 text-blue-400' :
-                        commission.commission_type === 'LV_B' ? 'bg-purple-500/20 text-purple-400' :
-                        'bg-violet-500/20 text-violet-400'
-                      }`}>
-                        {commission.commission_type}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-gray-400 font-mono text-sm">
-                      {commission.from_user_id.substring(0, 12)}...
-                    </td>
-                    <td className="py-4 px-4 text-green-400 font-bold">{commission.percentage}%</td>
-                    <td className="py-4 px-4 text-white font-mono font-bold">{formatCurrency(commission.amount)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Commission History */}
+      <div className="glass rounded-xl p-5 md:p-6" data-testid="commission-history">
+        <h2 className="text-lg md:text-xl font-bold text-white mb-5">Commission History</h2>
+        
+        {data.commissions.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-500">No commissions earned yet</p>
+            <p className="text-gray-600 text-sm mt-1">Build your team to start earning commissions</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {data.commissions.map((commission) => {
+              const levelNum = commission.level_depth || 1;
+              const levelColor = getLevelColor(levelNum);
+              
+              return (
+                <motion.div 
+                  key={commission.commission_id} 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center justify-between p-3 md:p-4 bg-white/5 rounded-lg hover:bg-white/10 transition"
+                  data-testid={`commission-row-${commission.commission_id}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${levelColor.split(' ')[1]}`}>
+                      <Gift className={`w-4 h-4 ${levelColor.split(' ')[0]}`} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${levelColor}`}>
+                          Level {levelNum}
+                        </span>
+                        <span className="text-green-400 text-xs font-bold">{commission.percentage}%</span>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-1">
+                        From: {commission.from_user_name || commission.from_user_id?.substring(0, 8) + '...'}
+                      </p>
+                      <p className="text-gray-600 text-xs">{formatDateTime(commission.created_at)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-white font-mono">
+                      +{formatCurrency(commission.amount)}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Info Card */}
+      <div className="glass rounded-xl p-5 bg-blue-500/5 border border-blue-500/20">
+        <h3 className="text-sm font-bold text-white mb-3">How Commissions Work</h3>
+        <div className="grid md:grid-cols-2 gap-4 text-xs text-gray-400">
+          <div>
+            <p className="font-bold text-blue-400 mb-1">6-Level Deep Commissions</p>
+            <p>Earn commissions from investments made by your team up to 6 levels deep.</p>
+          </div>
+          <div>
+            <p className="font-bold text-purple-400 mb-1">Package-Based Rates</p>
+            <p>Your commission rates depend on your current investment package level.</p>
+          </div>
         </div>
       </div>
     </div>
