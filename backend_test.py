@@ -89,6 +89,9 @@ class MinexAPITester:
             self.admin_token = response['token']
             print(f"   Admin token obtained: {self.admin_token[:20]}...")
             return True
+        elif response.get('detail') == 'Please verify your email before logging in':
+            print("   Admin account needs email verification - this is expected")
+            return False
         return False
 
     def test_user_registration(self):
