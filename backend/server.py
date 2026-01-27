@@ -1,9 +1,12 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Header, UploadFile, File, BackgroundTasks
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import random
+import string
 from pathlib import Path
 from typing import Optional, List
 import uuid
@@ -13,11 +16,14 @@ import base64
 from models import (
     User, UserCreate, UserLogin, UserResponse, UserRole,
     MembershipPackage, StakingPackage, Deposit, DepositCreate, DepositStatus,
-    Withdrawal, WithdrawalCreate, WithdrawalStatus, Staking, StakingCreate, StakingStatus,
+    Withdrawal, WithdrawalCreate, WithdrawalStatus, Staking, StakingCreate, StakingCreateLegacy, StakingStatus,
     Commission, ROITransaction, AdminSettings, DashboardStats, AdminDashboardStats,
-    PaymentMethod
+    PaymentMethod, InvestmentPackage, EmailVerificationRequest, EmailVerificationVerify,
+    Transaction, TransactionType, PasswordChangeRequest
 )
 from auth import verify_password, get_password_hash, create_access_token, decode_access_token
+from email_service import email_service
+from crypto_service import crypto_service
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -32,6 +38,7 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Helper Functions
 async def get_current_user(authorization: Optional[str] = Header(None)) -> User:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -55,56 +62,139 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
 def generate_referral_code() -> str:
     return str(uuid.uuid4())[:8].upper()
 
-async def calculate_level(user_id: str, total_investment: float) -> int:
+def generate_verification_code() -> str:
+    return ''.join(random.choices(string.digits, k=6))
+
+async def get_user_referral_tree(user_id: str, depth: int = 6) -> dict:
+    """Get user's referral tree up to specified depth"""
+    tree = {f"level_{i}": [] for i in range(1, depth + 1)}
+    
+    # Level 1: Direct referrals
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not user:
+        return tree
+    
+    tree["level_1"] = user.get("direct_referrals", [])
+    
+    # Levels 2-6: Indirect referrals
+    current_level_users = tree["level_1"]
+    for level in range(2, depth + 1):
+        next_level_users = []
+        for ref_user_id in current_level_users:
+            ref_user = await db.users.find_one({"user_id": ref_user_id}, {"_id": 0})
+            if ref_user:
+                next_level_users.extend(ref_user.get("direct_referrals", []))
+        tree[f"level_{level}"] = next_level_users
+        current_level_users = next_level_users
+    
+    return tree
+
+async def calculate_user_level(user_id: str, total_investment: float) -> int:
+    """Calculate user's level based on investment and referrals"""
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     if not user:
         return 1
     
-    direct_count = len(user.get("direct_referrals", []))
-    indirect_count = len(user.get("indirect_referrals", []))
+    referral_tree = await get_user_referral_tree(user_id)
     
-    packages = await db.membership_packages.find({"is_active": True}, {"_id": 0}).sort("level", -1).to_list(10)
+    # Get all active investment packages sorted by level (highest first)
+    packages = await db.investment_packages.find({"is_active": True}, {"_id": 0}).sort("level", -1).to_list(10)
     
+    if not packages:
+        # Fallback to old membership packages
+        packages = await db.membership_packages.find({"is_active": True}, {"_id": 0}).sort("level", -1).to_list(10)
+        for pkg in packages:
+            direct_count = len(referral_tree.get("level_1", []))
+            indirect_count = sum(len(referral_tree.get(f"level_{i}", [])) for i in range(2, 7))
+            
+            if (total_investment >= pkg.get("min_investment", 0) and 
+                direct_count >= pkg.get("direct_required", 0) and 
+                indirect_count >= pkg.get("indirect_required", 0)):
+                return pkg["level"]
+        return 1
+    
+    # Check each package from highest to lowest
     for pkg in packages:
-        if (total_investment >= pkg["min_investment"] and 
-            direct_count >= pkg.get("direct_required", 0) and 
-            indirect_count >= pkg.get("indirect_required", 0)):
+        # Check investment requirement
+        if total_investment < pkg.get("min_investment", 0):
+            continue
+        
+        # Check referral requirements for each level
+        meets_requirements = True
+        if pkg.get("direct_required", 0) > 0:
+            if len(referral_tree.get("level_1", [])) < pkg.get("direct_required", 0):
+                meets_requirements = False
+        
+        for level_num in range(2, 7):
+            required = pkg.get(f"level_{level_num}_required", 0)
+            if required > 0:
+                if len(referral_tree.get(f"level_{level_num}", [])) < required:
+                    meets_requirements = False
+                    break
+        
+        if meets_requirements:
             return pkg["level"]
     
     return 1
 
-async def distribute_commissions(deposit_id: str, user_id: str, amount: float):
+async def distribute_commissions(staking_entry_id: str, user_id: str, amount: float, background_tasks: BackgroundTasks = None):
+    """Distribute commissions to upline based on their package levels"""
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     if not user or not user.get("referred_by"):
         return
     
-    upline_levels = []
+    # Walk up the referral chain (up to 6 levels)
     current_ref = user.get("referred_by")
     
-    for _ in range(3):
+    for level_depth in range(1, 7):  # Levels 1-6
         if not current_ref:
             break
-        ref_user = await db.users.find_one({"user_id": current_ref}, {"_id": 0})
-        if ref_user:
-            upline_levels.append(ref_user)
-            current_ref = ref_user.get("referred_by")
-        else:
-            break
-    
-    commission_types = ["lv_a", "lv_b", "lv_c"]
-    
-    for idx, upline in enumerate(upline_levels):
-        if idx >= 3:
+        
+        upline = await db.users.find_one({"user_id": current_ref}, {"_id": 0})
+        if not upline:
             break
         
         upline_level = upline.get("level", 1)
-        package = await db.membership_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
+        
+        # Get upline's package to determine commission rates
+        package = await db.investment_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
+        if not package:
+            # Fallback to old system
+            package = await db.membership_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
         
         if not package:
+            current_ref = upline.get("referred_by")
             continue
         
-        commission_key = f"commission_{commission_types[idx]}"
+        # Check if this level is enabled for commissions
+        levels_enabled = package.get("levels_enabled", [1, 2, 3])
+        if level_depth not in levels_enabled:
+            current_ref = upline.get("referred_by")
+            continue
+        
+        # Get commission percentage for this level
+        commission_key_map = {
+            1: "commission_direct",
+            2: "commission_level_2",
+            3: "commission_level_3",
+            4: "commission_level_4",
+            5: "commission_level_5",
+            6: "commission_level_6"
+        }
+        
+        # Fallback for old system
+        old_commission_key_map = {
+            1: "commission_lv_a",
+            2: "commission_lv_b",
+            3: "commission_lv_c"
+        }
+        
+        commission_key = commission_key_map.get(level_depth)
         commission_percentage = package.get(commission_key, 0.0)
+        
+        if commission_percentage == 0 and level_depth <= 3:
+            old_key = old_commission_key_map.get(level_depth)
+            commission_percentage = package.get(old_key, 0.0)
         
         if commission_percentage > 0:
             commission_amount = amount * (commission_percentage / 100)
@@ -113,30 +203,107 @@ async def distribute_commissions(deposit_id: str, user_id: str, amount: float):
                 "commission_id": str(uuid.uuid4()),
                 "user_id": upline["user_id"],
                 "from_user_id": user_id,
+                "from_user_name": user.get("full_name", "Unknown"),
                 "amount": commission_amount,
-                "commission_type": commission_types[idx].upper(),
+                "commission_type": f"LEVEL_{level_depth}",
+                "level_depth": level_depth,
                 "percentage": commission_percentage,
-                "deposit_id": deposit_id,
+                "source_type": "staking",
+                "source_id": staking_entry_id,
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             await db.commissions.insert_one(commission_doc)
             
+            # Update upline balances
             await db.users.update_one(
                 {"user_id": upline["user_id"]},
                 {"$inc": {"commission_balance": commission_amount, "wallet_balance": commission_amount}}
             )
+        
+        # Move to next level
+        current_ref = upline.get("referred_by")
+
+# ============== EMAIL VERIFICATION ENDPOINTS ==============
+
+@api_router.post("/auth/send-verification")
+async def send_verification_email(request: EmailVerificationRequest, background_tasks: BackgroundTasks):
+    """Send email verification code"""
+    # Check if email already registered and verified
+    existing_user = await db.users.find_one({"email": request.email, "is_email_verified": True}, {"_id": 0})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Generate verification code
+    code = generate_verification_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    
+    # Store verification record
+    verification_doc = {
+        "verification_id": str(uuid.uuid4()),
+        "email": request.email,
+        "code": code,
+        "expires_at": expires_at.isoformat(),
+        "is_used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Remove old verifications for this email
+    await db.email_verifications.delete_many({"email": request.email})
+    await db.email_verifications.insert_one(verification_doc)
+    
+    # Send email in background
+    background_tasks.add_task(email_service.send_verification_code, request.email, code)
+    
+    return {"message": "Verification code sent to your email", "email": request.email}
+
+@api_router.post("/auth/verify-email")
+async def verify_email(request: EmailVerificationVerify):
+    """Verify email with code"""
+    verification = await db.email_verifications.find_one({
+        "email": request.email,
+        "code": request.code,
+        "is_used": False
+    }, {"_id": 0})
+    
+    if not verification:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(verification["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Verification code expired")
+    
+    # Mark as used
+    await db.email_verifications.update_one(
+        {"verification_id": verification["verification_id"]},
+        {"$set": {"is_used": True}}
+    )
+    
+    return {"message": "Email verified successfully", "verified": True}
+
+# ============== AUTH ENDPOINTS ==============
 
 @api_router.post("/auth/register")
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, background_tasks: BackgroundTasks):
+    # Check if email already registered
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    referred_by_id = None
-    if user_data.referral_code:
-        referrer = await db.users.find_one({"referral_code": user_data.referral_code}, {"_id": 0})
-        if referrer:
-            referred_by_id = referrer["user_id"]
+    # Verify referral code (REQUIRED)
+    referrer = await db.users.find_one({"referral_code": user_data.referral_code}, {"_id": 0})
+    if not referrer:
+        raise HTTPException(status_code=400, detail="Invalid referral code. Registration requires a valid referral link.")
+    
+    referred_by_id = referrer["user_id"]
+    
+    # Check email verification
+    verification = await db.email_verifications.find_one({
+        "email": user_data.email,
+        "is_used": True
+    }, {"_id": 0})
+    
+    is_verified = verification is not None
     
     user_id = str(uuid.uuid4())
     user_doc = {
@@ -156,33 +323,29 @@ async def register(user_data: UserCreate):
         "indirect_referrals": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "last_roi_date": None,
-        "is_active": True
+        "is_active": True,
+        "is_email_verified": is_verified
     }
     
     await db.users.insert_one(user_doc)
-    
-    # Remove MongoDB ObjectId that gets added after insert
     user_doc.pop("_id", None)
     
-    if referred_by_id:
+    # Update referrer's direct referrals
+    await db.users.update_one(
+        {"user_id": referred_by_id},
+        {"$push": {"direct_referrals": user_id}}
+    )
+    
+    # Update referrer's referrer's indirect referrals
+    if referrer.get("referred_by"):
         await db.users.update_one(
-            {"user_id": referred_by_id},
-            {"$push": {"direct_referrals": user_id}}
+            {"user_id": referrer["referred_by"]},
+            {"$push": {"indirect_referrals": user_id}}
         )
-        
-        referrer = await db.users.find_one({"user_id": referred_by_id}, {"_id": 0})
-        if referrer and referrer.get("referred_by"):
-            await db.users.update_one(
-                {"user_id": referrer["referred_by"]},
-                {"$push": {"indirect_referrals": user_id}}
-            )
     
     token = create_access_token({"user_id": user_id, "email": user_data.email})
     user_doc.pop("password_hash")
-    
-    # Convert enum and datetime to JSON serializable format
     user_doc["role"] = user_doc["role"].value
-    user_doc["created_at"] = user_doc["created_at"]
     
     return {"token": token, "user": user_doc}
 
@@ -192,35 +355,89 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
+    # Check if email is verified
+    if not user.get("is_email_verified", False):
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in")
+    
     token = create_access_token({"user_id": user["user_id"], "email": user["email"]})
     user.pop("password_hash")
     
-    # Ensure proper serialization
     if "role" in user and hasattr(user["role"], 'value'):
         user["role"] = user["role"].value
     
     return {"token": token, "user": user}
 
+# ============== USER ENDPOINTS ==============
+
 @api_router.get("/user/profile", response_model=UserResponse)
 async def get_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
+@api_router.put("/user/password")
+async def change_password(request: PasswordChangeRequest, current_user: User = Depends(get_current_user), background_tasks: BackgroundTasks = None):
+    # Verify current password
+    user = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
+    if not verify_password(request.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    
+    # Validate new password
+    if request.new_password != request.confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match")
+    
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Update password
+    new_hash = get_password_hash(request.new_password)
+    await db.users.update_one(
+        {"user_id": current_user.user_id},
+        {"$set": {"password_hash": new_hash}}
+    )
+    
+    # Send confirmation email
+    if background_tasks:
+        background_tasks.add_task(
+            email_service.send_password_change_confirmation,
+            current_user.email,
+            current_user.full_name
+        )
+    
+    return {"message": "Password changed successfully"}
+
 @api_router.get("/user/dashboard")
 async def get_dashboard(current_user: User = Depends(get_current_user)):
-    package = await db.membership_packages.find_one({"level": current_user.level, "is_active": True}, {"_id": 0})
+    # Get current package
+    package = await db.investment_packages.find_one({"level": current_user.level, "is_active": True}, {"_id": 0})
+    if not package:
+        package = await db.membership_packages.find_one({"level": current_user.level, "is_active": True}, {"_id": 0})
+    
     daily_roi = package.get("daily_roi", 0.0) if package else 0.0
     
+    # Calculate total commissions
     total_commissions = 0.0
     async for comm in db.commissions.find({"user_id": current_user.user_id}, {"_id": 0}):
         total_commissions += comm.get("amount", 0.0)
     
-    pending_withdrawals = await db.withdrawals.count_documents({"user_id": current_user.user_id, "status": WithdrawalStatus.PENDING})
+    # Get pending withdrawals count
+    pending_withdrawals = await db.withdrawals.count_documents({
+        "user_id": current_user.user_id, 
+        "status": WithdrawalStatus.PENDING
+    })
+    
+    # Calculate active staking amount
+    active_staking = 0.0
+    async for stake in db.staking.find({"user_id": current_user.user_id, "status": StakingStatus.ACTIVE}, {"_id": 0}):
+        active_staking += stake.get("amount", 0.0)
+    
+    # Total balance = ROI + Commission (withdrawable)
+    total_balance = current_user.roi_balance + current_user.commission_balance
     
     return DashboardStats(
-        total_balance=current_user.wallet_balance,
+        total_balance=total_balance,
         roi_balance=current_user.roi_balance,
         commission_balance=current_user.commission_balance,
         total_investment=current_user.total_investment,
+        active_staking=active_staking,
         current_level=current_user.level,
         daily_roi_percentage=daily_roi,
         direct_referrals=len(current_user.direct_referrals),
@@ -231,19 +448,93 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
 
 @api_router.get("/user/team")
 async def get_team(current_user: User = Depends(get_current_user)):
-    direct_users = []
-    for user_id in current_user.direct_referrals:
-        user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-        if user:
-            direct_users.append(user)
+    referral_tree = await get_user_referral_tree(current_user.user_id)
     
-    indirect_users = []
-    for user_id in current_user.indirect_referrals:
-        user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
-        if user:
-            indirect_users.append(user)
+    result = {}
+    for level_key, user_ids in referral_tree.items():
+        users = []
+        for user_id in user_ids:
+            user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+            if user:
+                users.append(user)
+        result[level_key] = users
     
-    return {"direct": direct_users, "indirect": indirect_users}
+    # Also provide direct and indirect for backward compatibility
+    result["direct"] = result.get("level_1", [])
+    result["indirect"] = []
+    for i in range(2, 7):
+        result["indirect"].extend(result.get(f"level_{i}", []))
+    
+    return result
+
+@api_router.get("/user/transactions")
+async def get_all_transactions(current_user: User = Depends(get_current_user)):
+    """Get all transactions for the user"""
+    transactions = []
+    
+    # Get deposits
+    deposits = await db.deposits.find({"user_id": current_user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for d in deposits:
+        transactions.append({
+            "transaction_id": d["deposit_id"],
+            "type": "deposit",
+            "amount": d["amount"],
+            "status": d["status"],
+            "description": f"Deposit via {d.get('payment_method', 'USDT')}",
+            "created_at": d["created_at"],
+            "metadata": {"payment_method": d.get("payment_method")}
+        })
+    
+    # Get withdrawals
+    withdrawals = await db.withdrawals.find({"user_id": current_user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for w in withdrawals:
+        transactions.append({
+            "transaction_id": w["withdrawal_id"],
+            "type": "withdrawal",
+            "amount": -w["amount"],
+            "status": w["status"],
+            "description": f"Withdrawal to {w.get('wallet_address', '')[:10]}...",
+            "created_at": w["created_at"],
+            "metadata": {"wallet_address": w.get("wallet_address")}
+        })
+    
+    # Get ROI transactions
+    roi_txs = await db.roi_transactions.find({"user_id": current_user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for r in roi_txs:
+        transactions.append({
+            "transaction_id": r["transaction_id"],
+            "type": "roi",
+            "amount": r["amount"],
+            "status": "completed",
+            "description": f"Daily ROI ({r.get('roi_percentage', 0)}%)",
+            "created_at": r["created_at"],
+            "metadata": {"roi_percentage": r.get("roi_percentage")}
+        })
+    
+    # Get commissions
+    commissions = await db.commissions.find({"user_id": current_user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for c in commissions:
+        level_name = c.get("commission_type", "LEVEL_1").replace("_", " ")
+        transactions.append({
+            "transaction_id": c["commission_id"],
+            "type": "commission",
+            "amount": c["amount"],
+            "status": "completed",
+            "description": f"{level_name} Commission ({c.get('percentage', 0)}%) from {c.get('from_user_name', 'team member')}",
+            "created_at": c["created_at"],
+            "metadata": {
+                "from_user": c.get("from_user_name"),
+                "level": c.get("level_depth"),
+                "percentage": c.get("percentage")
+            }
+        })
+    
+    # Sort all by date
+    transactions.sort(key=lambda x: x["created_at"], reverse=True)
+    
+    return transactions
+
+# ============== DEPOSIT ENDPOINTS ==============
 
 @api_router.post("/deposits")
 async def create_deposit(deposit_data: DepositCreate, current_user: User = Depends(get_current_user)):
@@ -262,11 +553,7 @@ async def create_deposit(deposit_data: DepositCreate, current_user: User = Depen
     }
     
     await db.deposits.insert_one(deposit_doc)
-    
-    # Remove MongoDB ObjectId that gets added after insert
     deposit_doc.pop("_id", None)
-    
-    # Convert enum to string for JSON serialization
     deposit_doc["status"] = deposit_doc["status"].value
     deposit_doc["payment_method"] = deposit_doc["payment_method"].value
     
@@ -294,10 +581,26 @@ async def upload_screenshot(deposit_id: str, file: UploadFile = File(...), curre
     
     return {"message": "Screenshot uploaded", "screenshot_url": screenshot_url}
 
+# ============== WITHDRAWAL ENDPOINTS ==============
+
 @api_router.post("/withdrawals")
 async def create_withdrawal(withdrawal_data: WithdrawalCreate, current_user: User = Depends(get_current_user)):
-    if withdrawal_data.amount > current_user.wallet_balance:
-        raise HTTPException(status_code=400, detail="Insufficient balance")
+    # Check withdrawable balance (ROI + Commission)
+    withdrawable_balance = current_user.roi_balance + current_user.commission_balance
+    
+    if withdrawal_data.amount > withdrawable_balance:
+        raise HTTPException(status_code=400, detail="Insufficient withdrawable balance")
+    
+    # Check if withdrawal is allowed today (based on admin settings)
+    settings = await db.admin_settings.find_one({"settings_id": "default"}, {"_id": 0})
+    if settings:
+        withdrawal_dates = settings.get("withdrawal_dates", [1, 15])
+        today = datetime.now(timezone.utc).day
+        if today not in withdrawal_dates and withdrawal_dates:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Withdrawals are only allowed on days: {', '.join(map(str, withdrawal_dates))}"
+            )
     
     withdrawal_doc = {
         "withdrawal_id": str(uuid.uuid4()),
@@ -313,16 +616,22 @@ async def create_withdrawal(withdrawal_data: WithdrawalCreate, current_user: Use
     }
     
     await db.withdrawals.insert_one(withdrawal_doc)
-    
-    # Remove MongoDB ObjectId that gets added after insert
     withdrawal_doc.pop("_id", None)
-    
-    # Convert enum to string for JSON serialization
     withdrawal_doc["status"] = withdrawal_doc["status"].value
+    
+    # Deduct from balances (prefer commission first, then ROI)
+    remaining = withdrawal_data.amount
+    commission_deduct = min(remaining, current_user.commission_balance)
+    remaining -= commission_deduct
+    roi_deduct = min(remaining, current_user.roi_balance)
     
     await db.users.update_one(
         {"user_id": current_user.user_id},
-        {"$inc": {"wallet_balance": -withdrawal_data.amount}}
+        {"$inc": {
+            "commission_balance": -commission_deduct,
+            "roi_balance": -roi_deduct,
+            "wallet_balance": -withdrawal_data.amount
+        }}
     )
     
     return withdrawal_doc
@@ -332,53 +641,123 @@ async def get_withdrawals(current_user: User = Depends(get_current_user)):
     withdrawals = await db.withdrawals.find({"user_id": current_user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return withdrawals
 
+# ============== STAKING/INVESTMENT ENDPOINTS ==============
+
 @api_router.get("/staking/packages")
 async def get_staking_packages():
+    """Get all investment packages"""
+    # Try new investment packages first
+    packages = await db.investment_packages.find({"is_active": True}, {"_id": 0}).sort("level", 1).to_list(10)
+    if packages:
+        return packages
+    
+    # Fallback to old staking packages
     packages = await db.staking_packages.find({"is_active": True}, {"_id": 0}).sort("tier", 1).to_list(10)
     return packages
 
+@api_router.get("/investment/packages")
+async def get_investment_packages():
+    """Get all investment packages (unified endpoint)"""
+    packages = await db.investment_packages.find({"is_active": True}, {"_id": 0}).sort("level", 1).to_list(10)
+    if not packages:
+        # Convert membership packages to investment packages format
+        membership_packages = await db.membership_packages.find({"is_active": True}, {"_id": 0}).sort("level", 1).to_list(10)
+        for pkg in membership_packages:
+            pkg["name"] = f"Level {pkg['level']} Package"
+            pkg["max_investment"] = pkg.get("min_investment", 0) * 10
+            pkg["commission_direct"] = pkg.get("commission_lv_a", 0)
+            pkg["commission_level_2"] = pkg.get("commission_lv_b", 0)
+            pkg["commission_level_3"] = pkg.get("commission_lv_c", 0)
+        packages = membership_packages
+    return packages
+
 @api_router.post("/staking")
-async def create_staking(staking_data: StakingCreate, current_user: User = Depends(get_current_user)):
-    package = await db.staking_packages.find_one({"staking_id": staking_data.staking_id, "is_active": True}, {"_id": 0})
-    if not package:
-        raise HTTPException(status_code=404, detail="Staking package not found")
+async def create_staking(staking_data: StakingCreate, current_user: User = Depends(get_current_user), background_tasks: BackgroundTasks = None):
+    """Activate staking/investment"""
+    # Check if user has deposit
+    approved_deposits = await db.deposits.count_documents({
+        "user_id": current_user.user_id,
+        "status": DepositStatus.APPROVED
+    })
     
-    if staking_data.amount < package["min_amount"] or staking_data.amount > package["max_amount"]:
-        raise HTTPException(status_code=400, detail="Amount out of range")
+    if approved_deposits == 0:
+        raise HTTPException(status_code=400, detail="Please make a deposit first before staking")
     
-    if package["remaining_supply"] <= 0:
-        raise HTTPException(status_code=400, detail="Package sold out")
-    
+    # Check balance
     if current_user.wallet_balance < staking_data.amount:
-        raise HTTPException(status_code=400, detail="Insufficient balance")
+        raise HTTPException(status_code=400, detail="Insufficient balance. Please deposit first.")
     
-    end_date = datetime.now(timezone.utc) + timedelta(days=staking_data.lock_period_days)
+    # Get package
+    package = await db.investment_packages.find_one({"package_id": staking_data.package_id, "is_active": True}, {"_id": 0})
+    if not package:
+        package = await db.membership_packages.find_one({"package_id": staking_data.package_id, "is_active": True}, {"_id": 0})
+    
+    if not package:
+        raise HTTPException(status_code=404, detail="Investment package not found")
+    
+    # Validate amount
+    min_amount = package.get("min_investment", package.get("min_amount", 0))
+    max_amount = package.get("max_investment", package.get("max_amount", float('inf')))
+    
+    if staking_data.amount < min_amount:
+        raise HTTPException(status_code=400, detail=f"Minimum investment is ${min_amount}")
+    
+    if staking_data.amount > max_amount:
+        raise HTTPException(status_code=400, detail=f"Maximum investment is ${max_amount}")
+    
+    duration_days = package.get("duration_days", package.get("lock_period_days", 365))
+    daily_roi = package.get("daily_roi", package.get("daily_yield", 0))
+    end_date = datetime.now(timezone.utc) + timedelta(days=duration_days)
     
     staking_doc = {
         "staking_entry_id": str(uuid.uuid4()),
         "user_id": current_user.user_id,
-        "staking_id": staking_data.staking_id,
+        "package_id": staking_data.package_id,
         "amount": staking_data.amount,
-        "daily_yield": package["daily_yield"],
-        "lock_period_days": staking_data.lock_period_days,
+        "daily_roi": daily_roi,
+        "duration_days": duration_days,
         "start_date": datetime.now(timezone.utc).isoformat(),
         "end_date": end_date.isoformat(),
         "status": StakingStatus.ACTIVE,
         "total_earned": 0.0,
-        "last_yield_date": None
+        "last_yield_date": None,
+        "capital_returned": False
     }
     
     await db.staking.insert_one(staking_doc)
+    staking_doc.pop("_id", None)
     
+    # Deduct from wallet balance
     await db.users.update_one(
         {"user_id": current_user.user_id},
-        {"$inc": {"wallet_balance": -staking_data.amount}}
+        {"$inc": {
+            "wallet_balance": -staking_data.amount,
+            "total_investment": staking_data.amount
+        }}
     )
     
-    await db.staking_packages.update_one(
-        {"staking_id": staking_data.staking_id},
-        {"$inc": {"remaining_supply": -1}}
-    )
+    # Distribute commissions to upline
+    if background_tasks:
+        background_tasks.add_task(distribute_commissions, staking_doc["staking_entry_id"], current_user.user_id, staking_data.amount)
+    else:
+        await distribute_commissions(staking_doc["staking_entry_id"], current_user.user_id, staking_data.amount)
+    
+    # Check for level upgrade
+    user = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
+    new_level = await calculate_user_level(current_user.user_id, user["total_investment"])
+    if new_level > current_user.level:
+        await db.users.update_one(
+            {"user_id": current_user.user_id},
+            {"$set": {"level": new_level}}
+        )
+        if background_tasks:
+            background_tasks.add_task(
+                email_service.send_level_promotion,
+                current_user.email,
+                current_user.full_name,
+                current_user.level,
+                new_level
+            )
     
     return staking_doc
 
@@ -387,28 +766,56 @@ async def get_user_staking(current_user: User = Depends(get_current_user)):
     stakes = await db.staking.find({"user_id": current_user.user_id}, {"_id": 0}).sort("start_date", -1).to_list(100)
     return stakes
 
+# ============== COMMISSION ENDPOINTS ==============
+
 @api_router.get("/commissions")
 async def get_commissions(current_user: User = Depends(get_current_user)):
     commissions = await db.commissions.find({"user_id": current_user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
     
-    lv_a_total = sum(c["amount"] for c in commissions if c.get("commission_type") == "LV_A")
-    lv_b_total = sum(c["amount"] for c in commissions if c.get("commission_type") == "LV_B")
-    lv_c_total = sum(c["amount"] for c in commissions if c.get("commission_type") == "LV_C")
+    # Summarize by level
+    summary = {f"level_{i}": 0.0 for i in range(1, 7)}
+    for c in commissions:
+        level = c.get("level_depth", 1)
+        summary[f"level_{level}"] += c.get("amount", 0.0)
+    
+    # Backward compatibility
+    summary["lv_a"] = summary.get("level_1", 0)
+    summary["lv_b"] = summary.get("level_2", 0)
+    summary["lv_c"] = summary.get("level_3", 0)
+    summary["total"] = sum(summary.get(f"level_{i}", 0) for i in range(1, 7))
     
     return {
         "commissions": commissions,
-        "summary": {
-            "lv_a": lv_a_total,
-            "lv_b": lv_b_total,
-            "lv_c": lv_c_total,
-            "total": lv_a_total + lv_b_total + lv_c_total
-        }
+        "summary": summary
     }
+
+# ============== MEMBERSHIP/PACKAGE ENDPOINTS ==============
 
 @api_router.get("/membership/packages")
 async def get_membership_packages():
+    # Try investment packages first
+    packages = await db.investment_packages.find({"is_active": True}, {"_id": 0}).sort("level", 1).to_list(10)
+    if packages:
+        # Convert to membership format for backward compatibility
+        for pkg in packages:
+            pkg["commission_lv_a"] = pkg.get("commission_direct", 0)
+            pkg["commission_lv_b"] = pkg.get("commission_level_2", 0)
+            pkg["commission_lv_c"] = pkg.get("commission_level_3", 0)
+            pkg["direct_required"] = pkg.get("direct_required", 0)
+            pkg["indirect_required"] = sum([
+                pkg.get("level_2_required", 0),
+                pkg.get("level_3_required", 0),
+                pkg.get("level_4_required", 0),
+                pkg.get("level_5_required", 0),
+                pkg.get("level_6_required", 0)
+            ])
+        return packages
+    
+    # Fallback to old membership packages
     packages = await db.membership_packages.find({"is_active": True}, {"_id": 0}).sort("level", 1).to_list(10)
     return packages
+
+# ============== SETTINGS ENDPOINTS ==============
 
 @api_router.get("/settings")
 async def get_settings():
@@ -416,7 +823,9 @@ async def get_settings():
     if not settings:
         default_settings = {
             "settings_id": "default",
-            "usdt_wallet_address": "TXyz123SampleUSDTAddress456789",
+            "usdt_wallet_address": "",
+            "qr_code_image": None,
+            "withdrawal_dates": [1, 15],
             "community_star_target": 28.0,
             "community_star_bonus_min": 100.0,
             "community_star_bonus_max": 1000.0,
@@ -425,6 +834,16 @@ async def get_settings():
         await db.admin_settings.insert_one(default_settings)
         return default_settings
     return settings
+
+# ============== CRYPTO PRICE ENDPOINTS ==============
+
+@api_router.get("/crypto/prices")
+async def get_crypto_prices():
+    """Get live cryptocurrency prices"""
+    prices = await crypto_service.get_prices()
+    return prices
+
+# ============== ADMIN ENDPOINTS ==============
 
 @api_router.get("/admin/dashboard")
 async def get_admin_dashboard(admin: User = Depends(get_admin_user)):
@@ -467,7 +886,6 @@ async def get_all_users(admin: User = Depends(get_admin_user)):
 async def get_all_deposits(admin: User = Depends(get_admin_user)):
     deposits = await db.deposits.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
     
-    # Enrich deposits with user information
     enriched_deposits = []
     for deposit in deposits:
         user = await db.users.find_one({"user_id": deposit["user_id"]}, {"_id": 0, "email": 1, "full_name": 1})
@@ -481,7 +899,7 @@ async def get_all_deposits(admin: User = Depends(get_admin_user)):
     return enriched_deposits
 
 @api_router.post("/admin/deposits/{deposit_id}/approve")
-async def approve_deposit(deposit_id: str, admin: User = Depends(get_admin_user)):
+async def approve_deposit(deposit_id: str, admin: User = Depends(get_admin_user), background_tasks: BackgroundTasks = None):
     deposit = await db.deposits.find_one({"deposit_id": deposit_id}, {"_id": 0})
     if not deposit:
         raise HTTPException(status_code=404, detail="Deposit not found")
@@ -503,26 +921,23 @@ async def approve_deposit(deposit_id: str, admin: User = Depends(get_admin_user)
     
     await db.users.update_one(
         {"user_id": user_id},
-        {"$inc": {
-            "wallet_balance": amount,
-            "total_investment": amount
-        }}
+        {"$inc": {"wallet_balance": amount}}
     )
     
+    # Send notification email
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    new_level = await calculate_level(user_id, user["total_investment"])
-    if new_level != user["level"]:
-        await db.users.update_one(
-            {"user_id": user_id},
-            {"$set": {"level": new_level}}
+    if user and background_tasks:
+        background_tasks.add_task(
+            email_service.send_deposit_approved,
+            user["email"],
+            user["full_name"],
+            amount
         )
     
-    await distribute_commissions(deposit_id, user_id, amount)
-    
-    return {"message": "Deposit approved and commissions distributed"}
+    return {"message": "Deposit approved"}
 
 @api_router.post("/admin/deposits/{deposit_id}/reject")
-async def reject_deposit(deposit_id: str, reason: str, admin: User = Depends(get_admin_user)):
+async def reject_deposit(deposit_id: str, reason: str, admin: User = Depends(get_admin_user), background_tasks: BackgroundTasks = None):
     deposit = await db.deposits.find_one({"deposit_id": deposit_id}, {"_id": 0})
     if not deposit:
         raise HTTPException(status_code=404, detail="Deposit not found")
@@ -536,15 +951,36 @@ async def reject_deposit(deposit_id: str, reason: str, admin: User = Depends(get
         }}
     )
     
+    # Send notification email
+    user = await db.users.find_one({"user_id": deposit["user_id"]}, {"_id": 0})
+    if user and background_tasks:
+        background_tasks.add_task(
+            email_service.send_deposit_rejected,
+            user["email"],
+            user["full_name"],
+            deposit["amount"],
+            reason
+        )
+    
     return {"message": "Deposit rejected"}
 
 @api_router.get("/admin/withdrawals")
 async def get_all_withdrawals(admin: User = Depends(get_admin_user)):
     withdrawals = await db.withdrawals.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
-    return withdrawals
+    
+    enriched = []
+    for w in withdrawals:
+        user = await db.users.find_one({"user_id": w["user_id"]}, {"_id": 0, "email": 1, "full_name": 1})
+        enriched.append({
+            **w,
+            "user_email": user.get("email") if user else "Unknown",
+            "user_name": user.get("full_name") if user else "Unknown"
+        })
+    
+    return enriched
 
 @api_router.post("/admin/withdrawals/{withdrawal_id}/approve")
-async def approve_withdrawal(withdrawal_id: str, transaction_hash: str, admin: User = Depends(get_admin_user)):
+async def approve_withdrawal(withdrawal_id: str, transaction_hash: str, admin: User = Depends(get_admin_user), background_tasks: BackgroundTasks = None):
     withdrawal = await db.withdrawals.find_one({"withdrawal_id": withdrawal_id}, {"_id": 0})
     if not withdrawal:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
@@ -559,10 +995,21 @@ async def approve_withdrawal(withdrawal_id: str, transaction_hash: str, admin: U
         }}
     )
     
+    # Send notification email
+    user = await db.users.find_one({"user_id": withdrawal["user_id"]}, {"_id": 0})
+    if user and background_tasks:
+        background_tasks.add_task(
+            email_service.send_withdrawal_approved,
+            user["email"],
+            user["full_name"],
+            withdrawal["amount"],
+            transaction_hash
+        )
+    
     return {"message": "Withdrawal approved"}
 
 @api_router.post("/admin/withdrawals/{withdrawal_id}/reject")
-async def reject_withdrawal(withdrawal_id: str, reason: str, admin: User = Depends(get_admin_user)):
+async def reject_withdrawal(withdrawal_id: str, reason: str, admin: User = Depends(get_admin_user), background_tasks: BackgroundTasks = None):
     withdrawal = await db.withdrawals.find_one({"withdrawal_id": withdrawal_id}, {"_id": 0})
     if not withdrawal:
         raise HTTPException(status_code=404, detail="Withdrawal not found")
@@ -576,18 +1023,58 @@ async def reject_withdrawal(withdrawal_id: str, reason: str, admin: User = Depen
         }}
     )
     
+    # Restore balance
     await db.users.update_one(
         {"user_id": withdrawal["user_id"]},
-        {"$inc": {"wallet_balance": withdrawal["amount"]}}
+        {"$inc": {
+            "wallet_balance": withdrawal["amount"],
+            "roi_balance": withdrawal["amount"]  # Restore to ROI balance
+        }}
     )
+    
+    # Send notification email
+    user = await db.users.find_one({"user_id": withdrawal["user_id"]}, {"_id": 0})
+    if user and background_tasks:
+        background_tasks.add_task(
+            email_service.send_withdrawal_rejected,
+            user["email"],
+            user["full_name"],
+            withdrawal["amount"],
+            reason
+        )
     
     return {"message": "Withdrawal rejected and balance restored"}
 
+# Admin Package Management - Investment Packages (New Unified System)
+@api_router.post("/admin/investment/packages")
+async def create_investment_package(package: InvestmentPackage, admin: User = Depends(get_admin_user)):
+    package_dict = package.model_dump()
+    package_dict["created_at"] = package_dict["created_at"].isoformat()
+    package_dict["annual_roi"] = package_dict["daily_roi"] * 365  # Auto-calculate
+    await db.investment_packages.insert_one(package_dict)
+    package_dict.pop("_id", None)
+    return package_dict
+
+@api_router.put("/admin/investment/packages/{package_id}")
+async def update_investment_package(package_id: str, package: InvestmentPackage, admin: User = Depends(get_admin_user)):
+    package_dict = package.model_dump()
+    package_dict["created_at"] = package_dict["created_at"].isoformat()
+    package_dict["annual_roi"] = package_dict["daily_roi"] * 365  # Auto-calculate
+    await db.investment_packages.update_one({"package_id": package_id}, {"$set": package_dict})
+    return package_dict
+
+@api_router.delete("/admin/investment/packages/{package_id}")
+async def delete_investment_package(package_id: str, admin: User = Depends(get_admin_user)):
+    await db.investment_packages.update_one({"package_id": package_id}, {"$set": {"is_active": False}})
+    return {"message": "Package deactivated"}
+
+# Admin Package Management - Legacy Membership Packages
 @api_router.post("/admin/membership/packages")
 async def create_membership_package(package: MembershipPackage, admin: User = Depends(get_admin_user)):
     package_dict = package.model_dump()
     package_dict["created_at"] = package_dict["created_at"].isoformat()
     await db.membership_packages.insert_one(package_dict)
+    package_dict.pop("_id", None)
     return package_dict
 
 @api_router.put("/admin/membership/packages/{package_id}")
@@ -597,11 +1084,13 @@ async def update_membership_package(package_id: str, package: MembershipPackage,
     await db.membership_packages.update_one({"package_id": package_id}, {"$set": package_dict})
     return package_dict
 
+# Admin Package Management - Legacy Staking Packages
 @api_router.post("/admin/staking/packages")
 async def create_staking_package(package: StakingPackage, admin: User = Depends(get_admin_user)):
     package_dict = package.model_dump()
     package_dict["created_at"] = package_dict["created_at"].isoformat()
     await db.staking_packages.insert_one(package_dict)
+    package_dict.pop("_id", None)
     return package_dict
 
 @api_router.put("/admin/staking/packages/{staking_id}")
@@ -611,6 +1100,7 @@ async def update_staking_package(staking_id: str, package: StakingPackage, admin
     await db.staking_packages.update_one({"staking_id": staking_id}, {"$set": package_dict})
     return package_dict
 
+# Admin Settings
 @api_router.put("/admin/settings")
 async def update_settings(settings: AdminSettings, admin: User = Depends(get_admin_user)):
     settings_dict = settings.model_dump()
@@ -622,42 +1112,93 @@ async def update_settings(settings: AdminSettings, admin: User = Depends(get_adm
     )
     return settings_dict
 
+@api_router.post("/admin/settings/qr-code")
+async def upload_qr_code(file: UploadFile = File(...), admin: User = Depends(get_admin_user)):
+    """Upload QR code image for deposit page"""
+    contents = await file.read()
+    qr_base64 = base64.b64encode(contents).decode('utf-8')
+    qr_url = f"data:image/png;base64,{qr_base64}"
+    
+    await db.admin_settings.update_one(
+        {"settings_id": "default"},
+        {"$set": {"qr_code_image": qr_url, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    
+    return {"message": "QR code uploaded", "qr_code_image": qr_url}
+
+# Admin ROI Calculation
 @api_router.post("/admin/calculate-roi")
 async def calculate_daily_roi(admin: User = Depends(get_admin_user)):
-    users = await db.users.find({"is_active": True, "total_investment": {"$gt": 0}}, {"_id": 0}).to_list(10000)
+    """Calculate and distribute daily ROI to all active stakers"""
+    active_stakes = await db.staking.find({"status": StakingStatus.ACTIVE}, {"_id": 0}).to_list(10000)
     
     roi_count = 0
-    for user in users:
-        package = await db.membership_packages.find_one({"level": user["level"], "is_active": True}, {"_id": 0})
-        if not package:
+    total_roi_distributed = 0.0
+    
+    for stake in active_stakes:
+        user_id = stake["user_id"]
+        amount = stake["amount"]
+        daily_roi = stake.get("daily_roi", 0)
+        
+        if daily_roi <= 0:
             continue
         
-        daily_roi_percentage = package.get("daily_roi", 0.0)
-        roi_amount = user["total_investment"] * (daily_roi_percentage / 100)
+        # Check if package duration completed
+        end_date = datetime.fromisoformat(stake["end_date"].replace("Z", "+00:00"))
+        if datetime.now(timezone.utc) >= end_date:
+            # Mark as completed and return capital
+            if not stake.get("capital_returned", False):
+                await db.staking.update_one(
+                    {"staking_entry_id": stake["staking_entry_id"]},
+                    {"$set": {"status": StakingStatus.COMPLETED, "capital_returned": True}}
+                )
+                await db.users.update_one(
+                    {"user_id": user_id},
+                    {"$inc": {"wallet_balance": amount}}  # Return capital
+                )
+            continue
         
-        if roi_amount > 0:
-            roi_doc = {
-                "transaction_id": str(uuid.uuid4()),
-                "user_id": user["user_id"],
-                "amount": roi_amount,
-                "roi_percentage": daily_roi_percentage,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.roi_transactions.insert_one(roi_doc)
-            
-            await db.users.update_one(
-                {"user_id": user["user_id"]},
-                {"$inc": {
-                    "roi_balance": roi_amount,
-                    "wallet_balance": roi_amount
-                },
-                "$set": {
-                    "last_roi_date": datetime.now(timezone.utc).isoformat()
-                }}
-            )
-            roi_count += 1
+        roi_amount = amount * (daily_roi / 100)
+        
+        roi_doc = {
+            "transaction_id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "staking_entry_id": stake["staking_entry_id"],
+            "amount": roi_amount,
+            "roi_percentage": daily_roi,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.roi_transactions.insert_one(roi_doc)
+        
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$inc": {
+                "roi_balance": roi_amount,
+                "wallet_balance": roi_amount
+            },
+            "$set": {
+                "last_roi_date": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        # Update staking entry
+        await db.staking.update_one(
+            {"staking_entry_id": stake["staking_entry_id"]},
+            {"$inc": {"total_earned": roi_amount},
+             "$set": {"last_yield_date": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        roi_count += 1
+        total_roi_distributed += roi_amount
     
-    return {"message": f"ROI calculated for {roi_count} users", "total_users_processed": roi_count}
+    return {
+        "message": f"ROI calculated for {roi_count} active stakes",
+        "total_users_processed": roi_count,
+        "total_roi_distributed": total_roi_distributed
+    }
+
+# ============== INCLUDE ROUTER AND MIDDLEWARE ==============
 
 app.include_router(api_router)
 
@@ -671,8 +1212,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting application...")
+    logger.info("Starting MINEX GLOBAL application...")
     
+    # Create admin user if not exists
     admin_exists = await db.users.find_one({"email": "admin@minex.online"}, {"_id": 0})
     if not admin_exists:
         admin_doc = {
@@ -692,33 +1234,185 @@ async def startup_event():
             "indirect_referrals": [],
             "created_at": datetime.now(timezone.utc).isoformat(),
             "last_roi_date": None,
-            "is_active": True
+            "is_active": True,
+            "is_email_verified": True
         }
         await db.users.insert_one(admin_doc)
-        logger.info("Admin user created")
+        logger.info("Admin user created: admin@minex.online / password")
     
-    membership_count = await db.membership_packages.count_documents({})
-    if membership_count == 0:
-        membership_packages = [
-            {"package_id": str(uuid.uuid4()), "level": 1, "min_investment": 50, "daily_roi": 1.8, "annual_roi": 657, "duration_days": 365, "direct_required": 0, "indirect_required": 0, "commission_lv_a": 0, "commission_lv_b": 0, "commission_lv_c": 0, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"package_id": str(uuid.uuid4()), "level": 2, "min_investment": 500, "daily_roi": 2.1, "annual_roi": 766.5, "duration_days": 365, "direct_required": 3, "indirect_required": 4, "commission_lv_a": 12, "commission_lv_b": 5, "commission_lv_c": 2, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"package_id": str(uuid.uuid4()), "level": 3, "min_investment": 2000, "daily_roi": 2.5, "annual_roi": 912.5, "duration_days": 365, "direct_required": 15, "indirect_required": 30, "commission_lv_a": 13, "commission_lv_b": 6, "commission_lv_c": 3, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"package_id": str(uuid.uuid4()), "level": 4, "min_investment": 5000, "daily_roi": 3.1, "annual_roi": 1131.5, "duration_days": 365, "direct_required": 30, "indirect_required": 60, "commission_lv_a": 15, "commission_lv_b": 7, "commission_lv_c": 5, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"package_id": str(uuid.uuid4()), "level": 5, "min_investment": 10000, "daily_roi": 3.7, "annual_roi": 1350.5, "duration_days": 365, "direct_required": 50, "indirect_required": 100, "commission_lv_a": 16, "commission_lv_b": 8, "commission_lv_c": 7, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"package_id": str(uuid.uuid4()), "level": 6, "min_investment": 30000, "daily_roi": 4.1, "annual_roi": 1496.5, "duration_days": 365, "direct_required": 100, "indirect_required": 200, "commission_lv_a": 18, "commission_lv_b": 9, "commission_lv_c": 8, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()}
+    # Initialize default investment packages based on user's image
+    investment_count = await db.investment_packages.count_documents({})
+    if investment_count == 0:
+        investment_packages = [
+            {
+                "package_id": str(uuid.uuid4()),
+                "name": "Level 1 - Basic",
+                "level": 1,
+                "min_investment": 50,
+                "max_investment": 1000,
+                "daily_roi": 1.8,
+                "annual_roi": 657,
+                "duration_days": 365,
+                "direct_required": 0,
+                "level_2_required": 0,
+                "level_3_required": 0,
+                "level_4_required": 0,
+                "level_5_required": 0,
+                "level_6_required": 0,
+                "commission_direct": 0,
+                "commission_level_2": 0,
+                "commission_level_3": 0,
+                "commission_level_4": 0,
+                "commission_level_5": 0,
+                "commission_level_6": 0,
+                "levels_enabled": [],
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "package_id": str(uuid.uuid4()),
+                "name": "Level 2 - Silver",
+                "level": 2,
+                "min_investment": 500,
+                "max_investment": 2000,
+                "daily_roi": 2.1,
+                "annual_roi": 766.5,
+                "duration_days": 365,
+                "direct_required": 3,
+                "level_2_required": 5,
+                "level_3_required": 0,
+                "level_4_required": 0,
+                "level_5_required": 0,
+                "level_6_required": 0,
+                "commission_direct": 12,
+                "commission_level_2": 5,
+                "commission_level_3": 2,
+                "commission_level_4": 0,
+                "commission_level_5": 0,
+                "commission_level_6": 0,
+                "levels_enabled": [1, 2, 3],
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "package_id": str(uuid.uuid4()),
+                "name": "Level 3 - Gold",
+                "level": 3,
+                "min_investment": 2000,
+                "max_investment": 5000,
+                "daily_roi": 2.6,
+                "annual_roi": 949,
+                "duration_days": 365,
+                "direct_required": 6,
+                "level_2_required": 20,
+                "level_3_required": 0,
+                "level_4_required": 0,
+                "level_5_required": 0,
+                "level_6_required": 0,
+                "commission_direct": 13,
+                "commission_level_2": 6,
+                "commission_level_3": 3,
+                "commission_level_4": 0,
+                "commission_level_5": 0,
+                "commission_level_6": 0,
+                "levels_enabled": [1, 2, 3],
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "package_id": str(uuid.uuid4()),
+                "name": "Level 4 - Platinum",
+                "level": 4,
+                "min_investment": 5000,
+                "max_investment": 10000,
+                "daily_roi": 3.1,
+                "annual_roi": 1131.5,
+                "duration_days": 365,
+                "direct_required": 15,
+                "level_2_required": 35,
+                "level_3_required": 0,
+                "level_4_required": 0,
+                "level_5_required": 0,
+                "level_6_required": 0,
+                "commission_direct": 15,
+                "commission_level_2": 7,
+                "commission_level_3": 5,
+                "commission_level_4": 0,
+                "commission_level_5": 0,
+                "commission_level_6": 0,
+                "levels_enabled": [1, 2, 3],
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "package_id": str(uuid.uuid4()),
+                "name": "Level 5 - Diamond",
+                "level": 5,
+                "min_investment": 10000,
+                "max_investment": 30000,
+                "daily_roi": 3.7,
+                "annual_roi": 1350.5,
+                "duration_days": 365,
+                "direct_required": 25,
+                "level_2_required": 70,
+                "level_3_required": 0,
+                "level_4_required": 0,
+                "level_5_required": 0,
+                "level_6_required": 0,
+                "commission_direct": 16,
+                "commission_level_2": 8,
+                "commission_level_3": 7,
+                "commission_level_4": 0,
+                "commission_level_5": 0,
+                "commission_level_6": 0,
+                "levels_enabled": [1, 2, 3],
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "package_id": str(uuid.uuid4()),
+                "name": "Level 6 - VIP",
+                "level": 6,
+                "min_investment": 30000,
+                "max_investment": 50000,
+                "daily_roi": 4.1,
+                "annual_roi": 1496.5,
+                "duration_days": 365,
+                "direct_required": 35,
+                "level_2_required": 180,
+                "level_3_required": 0,
+                "level_4_required": 0,
+                "level_5_required": 0,
+                "level_6_required": 0,
+                "commission_direct": 18,
+                "commission_level_2": 9,
+                "commission_level_3": 8,
+                "commission_level_4": 0,
+                "commission_level_5": 0,
+                "commission_level_6": 0,
+                "levels_enabled": [1, 2, 3],
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
         ]
-        await db.membership_packages.insert_many(membership_packages)
-        logger.info("Membership packages initialized")
+        await db.investment_packages.insert_many(investment_packages)
+        logger.info("Investment packages initialized")
     
-    staking_count = await db.staking_packages.count_documents({})
-    if staking_count == 0:
-        staking_packages = [
-            {"staking_id": str(uuid.uuid4()), "tier": 1, "min_amount": 200, "max_amount": 499, "daily_yield": 1.0, "total_supply": 100000, "remaining_supply": 100000, "lock_period_days": 30, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"staking_id": str(uuid.uuid4()), "tier": 2, "min_amount": 500, "max_amount": 799, "daily_yield": 1.3, "total_supply": 50000, "remaining_supply": 50000, "lock_period_days": 30, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
-            {"staking_id": str(uuid.uuid4()), "tier": 3, "min_amount": 800, "max_amount": 1200, "daily_yield": 1.5, "total_supply": 50000, "remaining_supply": 50000, "lock_period_days": 30, "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()}
-        ]
-        await db.staking_packages.insert_many(staking_packages)
-        logger.info("Staking packages initialized")
+    # Initialize default admin settings
+    settings_exists = await db.admin_settings.find_one({"settings_id": "default"}, {"_id": 0})
+    if not settings_exists:
+        default_settings = {
+            "settings_id": "default",
+            "usdt_wallet_address": "",
+            "qr_code_image": None,
+            "withdrawal_dates": [1, 15],
+            "community_star_target": 28.0,
+            "community_star_bonus_min": 100.0,
+            "community_star_bonus_max": 1000.0,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.admin_settings.insert_one(default_settings)
+        logger.info("Admin settings initialized")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
