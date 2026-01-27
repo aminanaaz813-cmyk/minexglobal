@@ -453,15 +453,20 @@ def main():
     
     tester = MinexAPITester()
     
-    # Test sequence
+    # Test sequence - focusing on review request requirements
     tests = [
-        # Basic endpoints
+        # Core APIs from review request
         ("Platform Settings", tester.test_settings),
-        ("Membership Packages", tester.test_membership_packages),
+        ("Investment Packages (6 Levels)", tester.test_investment_packages),
+        ("Live Crypto Prices", tester.test_crypto_prices),
+        ("Admin Login", tester.test_admin_login),
+        ("Admin Dashboard (with fix attempt)", tester.test_admin_dashboard_with_fix),
+        
+        # Additional backend tests
+        ("Membership Packages (Legacy)", tester.test_membership_packages),
         ("Staking Packages", tester.test_staking_packages),
         
-        # Authentication
-        ("Admin Login", tester.test_admin_login),
+        # Authentication flow
         ("User Registration", tester.test_user_registration),
         
         # User operations
@@ -473,8 +478,7 @@ def main():
         ("Create Deposit", tester.test_create_deposit),
         ("Get User Deposits", tester.test_get_deposits),
         
-        # Admin operations
-        ("Admin Dashboard", tester.test_admin_dashboard),
+        # Admin operations (if admin login works)
         ("Admin Get Deposits", tester.test_admin_get_deposits),
         ("Approve Deposit", tester.test_approve_deposit),
         
