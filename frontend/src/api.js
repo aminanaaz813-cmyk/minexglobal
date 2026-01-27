@@ -18,12 +18,16 @@ api.interceptors.request.use((config) => {
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
+  sendVerification: (email) => api.post('/auth/send-verification', { email }),
+  verifyEmail: (email, code) => api.post('/auth/verify-email', { email, code }),
 };
 
 export const userAPI = {
   getProfile: () => api.get('/user/profile'),
   getDashboard: () => api.get('/user/dashboard'),
   getTeam: () => api.get('/user/team'),
+  getTransactions: () => api.get('/user/transactions'),
+  changePassword: (data) => api.put('/user/password', data),
 };
 
 export const depositAPI = {
@@ -47,6 +51,12 @@ export const stakingAPI = {
   getUserStaking: () => api.get('/staking'),
 };
 
+export const investmentAPI = {
+  getPackages: () => api.get('/investment/packages'),
+  create: (data) => api.post('/staking', data),
+  getUserInvestments: () => api.get('/staking'),
+};
+
 export const commissionAPI = {
   getAll: () => api.get('/commissions'),
 };
@@ -60,6 +70,10 @@ export const settingsAPI = {
   update: (data) => api.put('/admin/settings', data),
 };
 
+export const cryptoAPI = {
+  getPrices: () => api.get('/crypto/prices'),
+};
+
 export const adminAPI = {
   getDashboard: () => api.get('/admin/dashboard'),
   getUsers: () => api.get('/admin/users'),
@@ -69,12 +83,24 @@ export const adminAPI = {
   getWithdrawals: () => api.get('/admin/withdrawals'),
   approveWithdrawal: (withdrawalId, transactionHash) => api.post(`/admin/withdrawals/${withdrawalId}/approve`, null, { params: { transaction_hash: transactionHash } }),
   rejectWithdrawal: (withdrawalId, reason) => api.post(`/admin/withdrawals/${withdrawalId}/reject`, null, { params: { reason } }),
+  // Legacy membership packages
   createMembershipPackage: (data) => api.post('/admin/membership/packages', data),
   updateMembershipPackage: (packageId, data) => api.put(`/admin/membership/packages/${packageId}`, data),
+  // New investment packages
+  createInvestmentPackage: (data) => api.post('/admin/investment/packages', data),
+  updateInvestmentPackage: (packageId, data) => api.put(`/admin/investment/packages/${packageId}`, data),
+  deleteInvestmentPackage: (packageId) => api.delete(`/admin/investment/packages/${packageId}`),
+  // Legacy staking packages
   createStakingPackage: (data) => api.post('/admin/staking/packages', data),
   updateStakingPackage: (stakingId, data) => api.put(`/admin/staking/packages/${stakingId}`, data),
+  // Settings
   updateSettings: (data) => api.put('/admin/settings', data),
   getSettings: () => api.get('/settings'),
+  uploadQRCode: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/admin/settings/qr-code', formData);
+  },
   calculateROI: () => api.post('/admin/calculate-roi'),
 };
 
