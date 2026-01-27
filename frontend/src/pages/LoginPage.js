@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/AuthContext';
 import { toast } from 'sonner';
-import { LogIn } from 'lucide-react';
+import { LogIn, Mail, AlertCircle } from 'lucide-react';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -13,10 +13,12 @@ const LoginPage = () => {
     password: ''
   });
   const [loading, setLoading] = useState(false);
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setEmailNotVerified(false);
     
     try {
       const result = await login(formData.email, formData.password);
@@ -28,7 +30,11 @@ const LoginPage = () => {
         navigate('/dashboard');
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Login failed');
+      const errorMessage = error.response?.data?.detail || 'Login failed';
+      if (errorMessage.includes('verify your email')) {
+        setEmailNotVerified(true);
+      }
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -51,6 +57,18 @@ const LoginPage = () => {
           <h1 className="text-3xl font-bold text-white mb-2" data-testid="login-title">Welcome Back</h1>
           <p className="text-gray-400">Login to access your dashboard</p>
         </div>
+
+        {emailNotVerified && (
+          <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-yellow-400 text-sm font-medium">Email Not Verified</p>
+                <p className="text-gray-400 text-xs mt-1">Please verify your email before logging in. Check your inbox for the verification code.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div data-testid="email-input-group">
