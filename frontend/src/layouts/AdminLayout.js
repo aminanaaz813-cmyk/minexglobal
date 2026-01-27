@@ -10,7 +10,8 @@ import {
   LogOut, 
   Menu, 
   X,
-  Shield
+  Shield,
+  Package
 } from 'lucide-react';
 
 const AdminLayout = ({ children }) => {
@@ -24,7 +25,7 @@ const AdminLayout = ({ children }) => {
     { path: '/admin/users', icon: Users, label: 'Users' },
     { path: '/admin/deposits', icon: ArrowDownToLine, label: 'Deposits' },
     { path: '/admin/withdrawals', icon: ArrowUpFromLine, label: 'Withdrawals' },
-    { path: '/admin/packages', icon: Shield, label: 'Packages' },
+    { path: '/admin/packages', icon: Package, label: 'Investment Packages' },
     { path: '/admin/settings', icon: Settings, label: 'Settings' },
   ];
 
