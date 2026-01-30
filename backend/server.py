@@ -217,32 +217,6 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
             )
         except Exception as e:
             logger.warning(f"Failed to send commission notification: {e}")
-            
-            # Update upline balances
-            await db.users.update_one(
-                {"user_id": upline["user_id"]},
-                {"$inc": {"commission_balance": commission_amount, "wallet_balance": commission_amount}}
-            )
-            
-            # Send commission notification email
-            try:
-                # Get updated total commission
-                updated_upline = await db.users.find_one({"user_id": upline["user_id"]}, {"_id": 0})
-                total_commission = updated_upline.get("commission_balance", commission_amount) if updated_upline else commission_amount
-                
-                await email_service.send_commission_notification(
-                    upline["email"],
-                    upline["full_name"],
-                    commission_amount,
-                    user.get("full_name", "Team Member"),
-                    level_depth,
-                    total_commission
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send commission notification: {e}")
-        
-        # Move to next level
-        current_ref = upline.get("referred_by")
 
 # ============== EMAIL VERIFICATION ENDPOINTS ==============
 
