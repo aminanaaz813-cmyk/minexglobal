@@ -89,7 +89,7 @@ class EmailService:
     
     async def _log_email_to_db(self, to_email: str, subject: str, email_type: str, content_preview: str):
         """Log email to database for admin review"""
-        if self.db:
+        if self.db is not None:
             email_log = {
                 "email_id": str(uuid.uuid4()),
                 "to_email": to_email,
