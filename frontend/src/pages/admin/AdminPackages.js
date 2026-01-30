@@ -201,10 +201,30 @@ const AdminPackages = () => {
         {packages.map((pkg) => (
           <div
             key={pkg.package_id}
-            className="glass rounded-xl p-5 hover:border-blue-500/50 transition-all group relative"
+            className={`glass rounded-xl p-5 transition-all group relative ${!pkg.is_active ? 'opacity-60 border-red-500/30' : 'hover:border-blue-500/50'}`}
             data-testid={`package-card-${pkg.level}`}
           >
-            <div className="absolute top-3 right-3">
+            {/* Status Badge */}
+            <div className="absolute top-3 left-3">
+              <span className={`px-2 py-1 text-xs font-bold rounded-full ${pkg.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                {pkg.is_active ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            
+            {/* Actions */}
+            <div className="absolute top-3 right-3 flex gap-2">
+              <button
+                onClick={() => handleToggleStatus(pkg.package_id, pkg.is_active)}
+                className={`p-2 rounded-lg transition ${pkg.is_active ? 'bg-green-500/10 hover:bg-green-500/20' : 'bg-red-500/10 hover:bg-red-500/20'}`}
+                title={pkg.is_active ? 'Deactivate Package' : 'Activate Package'}
+                data-testid={`toggle-package-${pkg.level}`}
+              >
+                {pkg.is_active ? (
+                  <ToggleRight className="w-4 h-4 text-green-400" />
+                ) : (
+                  <ToggleLeft className="w-4 h-4 text-red-400" />
+                )}
+              </button>
               <button
                 onClick={() => handleEdit(pkg)}
                 className="p-2 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition"
@@ -214,7 +234,7 @@ const AdminPackages = () => {
               </button>
             </div>
             
-            <div className="mb-4">
+            <div className="mb-4 mt-6">
               <div className="inline-block px-3 py-1 bg-gradient-to-r from-blue-600 to-violet-600 text-white text-xs font-bold rounded-full mb-2">
                 Level {pkg.level}
               </div>
