@@ -1,6 +1,7 @@
 """
 ROI Scheduler Service for MINEX GLOBAL Platform
 Automatically distributes daily ROI to all active stakers
+Also distributes profit share bonuses to uplines
 """
 import logging
 import asyncio
@@ -43,9 +44,106 @@ class ROIScheduler:
         self.next_run = next_run
         return next_run
     
+    async def distribute_profit_share(self, user_id: str, roi_amount: float, staking_entry_id: str):
+        """
+        Distribute profit share bonuses to uplines (Level 2-6)
+        This is based on ROI earnings, not deposits
+        """
+        user = await self.db.users.find_one({"user_id": user_id}, {"_id": 0})
+        if not user or not user.get("referred_by"):
+            return
+        
+        # Walk up the referral chain starting from Level 2 (skip direct referrer for profit share)
+        current_ref = user.get("referred_by")
+        
+        # First, get the direct referrer
+        direct_referrer = await self.db.users.find_one({"user_id": current_ref}, {"_id": 0})
+        if not direct_referrer:
+            return
+        
+        # Now start from Level 2 (the referrer of the direct referrer)
+        current_ref = direct_referrer.get("referred_by")
+        
+        for level_depth in range(2, 7):  # Levels 2-6 for profit share
+            if not current_ref:
+                break
+            
+            upline = await self.db.users.find_one({"user_id": current_ref}, {"_id": 0})
+            if not upline:
+                break
+            
+            upline_level = upline.get("level", 1)
+            
+            # Get upline's package to determine profit share rates
+            package = await self.db.investment_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
+            if not package:
+                current_ref = upline.get("referred_by")
+                continue
+            
+            # Check if this level is enabled
+            levels_enabled = package.get("levels_enabled", [1, 2, 3])
+            if level_depth not in levels_enabled:
+                current_ref = upline.get("referred_by")
+                continue
+            
+            # Get profit share percentage for this level
+            profit_share_key = f"profit_share_level_{level_depth}"
+            profit_share_percentage = package.get(profit_share_key, 0.0)
+            
+            # Fallback to old commission keys
+            if profit_share_percentage == 0:
+                old_key = f"commission_level_{level_depth}"
+                profit_share_percentage = package.get(old_key, 0.0)
+            
+            if profit_share_percentage > 0:
+                profit_share_amount = roi_amount * (profit_share_percentage / 100)
+                
+                # Create profit share commission record
+                commission_doc = {
+                    "commission_id": str(uuid.uuid4()),
+                    "user_id": upline["user_id"],
+                    "from_user_id": user_id,
+                    "from_user_name": user.get("full_name", "Unknown"),
+                    "amount": profit_share_amount,
+                    "commission_type": f"PROFIT_SHARE_L{level_depth}",
+                    "level_depth": level_depth,
+                    "percentage": profit_share_percentage,
+                    "source_type": "roi_profit_share",
+                    "source_id": staking_entry_id,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await self.db.commissions.insert_one(commission_doc)
+                
+                # Update upline balances
+                await self.db.users.update_one(
+                    {"user_id": upline["user_id"]},
+                    {"$inc": {"commission_balance": profit_share_amount, "wallet_balance": profit_share_amount}}
+                )
+                
+                # Send notification
+                if self.email_service:
+                    try:
+                        updated_upline = await self.db.users.find_one({"user_id": upline["user_id"]}, {"_id": 0})
+                        total_commission = updated_upline.get("commission_balance", profit_share_amount) if updated_upline else profit_share_amount
+                        
+                        await self.email_service.send_commission_notification(
+                            upline["email"],
+                            upline["full_name"],
+                            profit_share_amount,
+                            user.get("full_name", "Team Member"),
+                            level_depth,
+                            total_commission
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send profit share notification: {e}")
+            
+            # Move to next level
+            current_ref = upline.get("referred_by")
+    
     async def distribute_daily_roi(self) -> dict:
         """
         Distribute daily ROI to all active stakers
+        Also distributes profit share bonuses to uplines
         Returns summary of the distribution
         """
         if not self.db:
@@ -60,6 +158,7 @@ class ROIScheduler:
         
         roi_count = 0
         total_roi_distributed = 0.0
+        total_profit_share_distributed = 0.0
         users_notified = 0
         completed_stakes = 0
         
@@ -135,7 +234,10 @@ class ROIScheduler:
                 roi_count += 1
                 total_roi_distributed += roi_amount
                 
-                # Send email notification
+                # Distribute profit share bonuses to uplines (Level 2-6)
+                await self.distribute_profit_share(user_id, roi_amount, stake["staking_entry_id"])
+                
+                # Send email notification to user
                 if self.email_service:
                     user = await self.db.users.find_one({"user_id": user_id}, {"_id": 0})
                     if user:
