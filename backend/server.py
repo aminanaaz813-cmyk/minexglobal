@@ -367,11 +367,11 @@ async def reset_password(request: ResetPasswordRequest, background_tasks: Backgr
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Update password
+    # Update password (use password_hash field to match login endpoint)
     hashed_password = get_password_hash(request.new_password)
     await db.users.update_one(
         {"email": request.email},
-        {"$set": {"hashed_password": hashed_password, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {"password_hash": hashed_password, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     
     # Mark reset code as used
