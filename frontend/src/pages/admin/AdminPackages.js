@@ -197,6 +197,28 @@ const AdminPackages = () => {
         </button>
       </div>
 
+      {/* Empty State */}
+      {packages.length === 0 && !loading && (
+        <div className="glass rounded-xl p-12 text-center">
+          <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Plus className="w-8 h-8 text-blue-400" />
+          </div>
+          <h3 className="text-xl font-bold text-white mb-2">No Packages Yet</h3>
+          <p className="text-gray-400 mb-6">Create your first investment package to get started</p>
+          <button
+            onClick={() => {
+              resetForm();
+              setEditingPackage(null);
+              setShowDialog(true);
+            }}
+            className="btn-primary inline-flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Create First Package
+          </button>
+        </div>
+      )}
+
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
         {packages.map((pkg) => (
           <div
