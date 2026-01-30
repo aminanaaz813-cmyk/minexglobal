@@ -249,7 +249,7 @@ const AdminPackages = () => {
 
             {pkg.level >= 2 && (
               <div className="border-t border-white/10 pt-3">
-                <p className="text-xs text-gray-500 mb-2">Commission Rates</p>
+                <p className="text-xs text-gray-500 mb-2">Direct Comm. / Profit Share</p>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="text-center">
                     <div className="text-sm font-bold text-blue-400">{pkg.commission_direct || pkg.commission_lv_a || 0}%</div>
@@ -257,11 +257,11 @@ const AdminPackages = () => {
                   </div>
                   <div className="text-center">
                     <div className="text-sm font-bold text-purple-400">{pkg.commission_level_2 || pkg.commission_lv_b || 0}%</div>
-                    <div className="text-xs text-gray-500">Lv.2</div>
+                    <div className="text-xs text-gray-500">PS Lv.2</div>
                   </div>
                   <div className="text-center">
                     <div className="text-sm font-bold text-violet-400">{pkg.commission_level_3 || pkg.commission_lv_c || 0}%</div>
-                    <div className="text-xs text-gray-500">Lv.3</div>
+                    <div className="text-xs text-gray-500">PS Lv.3</div>
                   </div>
                 </div>
               </div>
@@ -456,12 +456,13 @@ const AdminPackages = () => {
               </div>
             </div>
 
-            {/* Commission Rates */}
+            {/* Commission Rates - Direct Commission + Profit Share */}
             <div className="border-t border-white/10 pt-4">
-              <h3 className="text-base font-bold text-white mb-3">Commission Rates (%)</h3>
+              <h3 className="text-base font-bold text-white mb-3">Commission & Profit Share Rates (%)</h3>
+              <p className="text-xs text-gray-500 mb-3">Level 1 = Direct commission on deposits. Levels 2-6 = Profit share from daily ROI</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Direct (Level 1)</label>
+                  <label className="block text-xs text-gray-400 mb-1">Direct Commission (Lv.1)</label>
                   <input
                     type="number"
                     step="0.1"
@@ -473,7 +474,7 @@ const AdminPackages = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Level 2</label>
+                  <label className="block text-xs text-gray-400 mb-1">Profit Share Lv.2</label>
                   <input
                     type="number"
                     step="0.1"
@@ -485,7 +486,7 @@ const AdminPackages = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Level 3</label>
+                  <label className="block text-xs text-gray-400 mb-1">Profit Share Lv.3</label>
                   <input
                     type="number"
                     step="0.1"
@@ -497,7 +498,7 @@ const AdminPackages = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Level 4</label>
+                  <label className="block text-xs text-gray-400 mb-1">Profit Share Lv.4</label>
                   <input
                     type="number"
                     step="0.1"
@@ -509,7 +510,7 @@ const AdminPackages = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Level 5</label>
+                  <label className="block text-xs text-gray-400 mb-1">Profit Share Lv.5</label>
                   <input
                     type="number"
                     step="0.1"
@@ -521,7 +522,7 @@ const AdminPackages = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Level 6</label>
+                  <label className="block text-xs text-gray-400 mb-1">Profit Share Lv.6</label>
                   <input
                     type="number"
                     step="0.1"
