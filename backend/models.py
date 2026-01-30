@@ -129,12 +129,22 @@ class InvestmentPackage(BaseModel):
     level_6_required: int = 0  # Level 6 referrals needed
     
     # Commission rates for each level (when user is at this package level)
-    commission_direct: float = 0.0  # Direct commission %
-    commission_level_2: float = 0.0  # Level 2 commission %
-    commission_level_3: float = 0.0  # Level 3 commission %
-    commission_level_4: float = 0.0  # Level 4 commission %
-    commission_level_5: float = 0.0  # Level 5 commission %
-    commission_level_6: float = 0.0  # Level 6 commission %
+    # Level 1: Direct commission on DEPOSIT
+    commission_direct: float = 0.0  # Direct commission % on deposit
+    
+    # Level 2-6: Profit Share on ROI (not deposit)
+    profit_share_level_2: float = 0.0  # Level 2 profit share %
+    profit_share_level_3: float = 0.0  # Level 3 profit share %
+    profit_share_level_4: float = 0.0  # Level 4 profit share %
+    profit_share_level_5: float = 0.0  # Level 5 profit share %
+    profit_share_level_6: float = 0.0  # Level 6 profit share %
+    
+    # Legacy fields for backward compatibility
+    commission_level_2: float = 0.0
+    commission_level_3: float = 0.0
+    commission_level_4: float = 0.0
+    commission_level_5: float = 0.0
+    commission_level_6: float = 0.0
     
     # Levels enabled for commissions (checkboxes)
     levels_enabled: List[int] = Field(default_factory=lambda: [1, 2, 3])  # Which levels earn commission
