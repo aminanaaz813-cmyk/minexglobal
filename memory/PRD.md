@@ -1,0 +1,214 @@
+# MINEX GLOBAL - Crypto Investment Platform
+
+## Product Requirements Document
+
+### Original Problem Statement
+Build a production-ready crypto investment platform called "MINEX GLOBAL" with:
+- Unified Investment Package system (merged Membership + Staking)
+- Two-tiered commission system (Direct commission on deposits, Profit share from ROI)
+- Email verification with SendGrid
+- Admin-configurable packages with ROI, commissions, and level promotions
+- User referral system with up to 6 levels
+- Automatic daily ROI distribution
+- Live crypto price ticker
+
+---
+
+## What's Been Implemented
+
+### Phase 1 - Core Platform (Completed)
+- [x] FastAPI backend with MongoDB database
+- [x] React frontend with Tailwind CSS
+- [x] JWT-based authentication
+- [x] User registration with referral code requirement
+- [x] Email verification system (SendGrid with DB fallback)
+- [x] Admin and Master user accounts
+
+### Phase 2 - Investment System (Completed)
+- [x] Unified Investment Packages (6 levels with configurable ROI, commissions)
+- [x] Deposit system with screenshot upload
+- [x] Withdrawal system with balance validation
+- [x] Staking/Investment activation
+- [x] Automatic daily ROI scheduler (roi_scheduler.py)
+- [x] Capital return after package duration
+
+### Phase 3 - Commission System (Completed - Jan 30, 2026)
+- [x] Two-tiered commission model:
+  - Level 1: Direct commission on deposits only
+  - Levels 2-6: Profit share from daily ROI (handled by ROI scheduler)
+- [x] Admin package form updated with "Profit Share" labels
+- [x] Commission distribution to direct referrer only on deposits
+
+### Phase 4 - UI/UX Enhancements (Completed - Jan 30, 2026)
+- [x] Landing page FAQ section (6 questions)
+- [x] Landing page Testimonials section (4 reviews)
+- [x] Landing page Active Packages slider
+- [x] Footer year updated to 2026
+- [x] User dashboard "Cash Wallet" label (was "Withdrawable")
+- [x] User dashboard card hover animations
+- [x] Admin deposits modal scrollable with close button
+- [x] Admin packages "Direct Comm. / Profit Share" labels
+
+### Phase 5 - Email Integration (Completed - Jan 30, 2026)
+- [x] SendGrid API integration
+- [x] Graceful fallback to DB logging if SendGrid fails
+- [x] Email templates for:
+  - Verification codes
+  - Deposit approved/rejected
+  - Withdrawal approved/rejected
+  - Daily ROI notifications
+  - Commission notifications
+  - Level promotions
+  - Password changes
+
+---
+
+## Architecture
+
+### Tech Stack
+- **Backend**: FastAPI, Motor (async MongoDB), Pydantic, APScheduler
+- **Frontend**: React, Tailwind CSS, Framer Motion, React Router
+- **Database**: MongoDB
+- **Email**: SendGrid (with DB fallback)
+- **External APIs**: CoinGecko (crypto prices)
+
+### Key Files
+```
+/app/
+├── backend/
+│   ├── server.py          # Main FastAPI application
+│   ├── models.py          # Pydantic models
+│   ├── auth.py            # JWT authentication
+│   ├── email_service.py   # SendGrid email service
+│   ├── crypto_service.py  # CoinGecko price fetcher
+│   ├── roi_scheduler.py   # Automatic daily ROI distribution
+│   └── .env               # Environment variables
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── LandingPage.js
+│   │   │   ├── LoginPage.js
+│   │   │   ├── RegisterPage.js
+│   │   │   ├── admin/
+│   │   │   │   ├── AdminDashboard.js
+│   │   │   │   ├── AdminDeposits.js
+│   │   │   │   ├── AdminPackages.js
+│   │   │   │   └── AdminWithdrawals.js
+│   │   │   └── user/
+│   │   │       ├── UserDashboard.js
+│   │   │       ├── TransactionsPage.js
+│   │   │       └── ...
+│   │   └── api.js         # API client
+│   └── .env               # Frontend environment
+```
+
+### Database Collections
+- `users` - User accounts and balances
+- `investment_packages` - Package configurations
+- `staking` - Active user investments
+- `deposits` - Deposit requests
+- `withdrawals` - Withdrawal requests
+- `commissions` - Commission/profit share records
+- `roi_transactions` - Daily ROI distributions
+- `admin_settings` - Platform settings (QR codes, withdrawal dates)
+- `email_logs` - Email delivery logs
+- `system_logs` - ROI scheduler logs
+
+---
+
+## Test Credentials
+- **Admin**: admin@minex.online / password
+- **Master User**: masteruser@gmail.com / password (Referral: MASTER01)
+
+---
+
+## API Endpoints
+
+### Authentication
+- POST /api/auth/register
+- POST /api/auth/login
+- POST /api/auth/send-verification
+- POST /api/auth/verify-email
+
+### User
+- GET /api/user/profile
+- GET /api/user/dashboard
+- GET /api/user/team
+- GET /api/user/transactions
+- PUT /api/user/password
+
+### Deposits & Withdrawals
+- POST /api/deposits
+- GET /api/deposits
+- POST /api/withdrawals
+- GET /api/withdrawals
+
+### Staking/Investment
+- GET /api/investment/packages
+- POST /api/staking
+- GET /api/staking
+
+### Admin
+- GET /api/admin/dashboard
+- GET /api/admin/users
+- GET /api/admin/deposits
+- POST /api/admin/deposits/{id}/approve
+- POST /api/admin/deposits/{id}/reject
+- GET /api/admin/withdrawals
+- POST /api/admin/withdrawals/{id}/approve
+- POST /api/admin/withdrawals/{id}/reject
+- POST /api/admin/investment/packages
+- PUT /api/admin/investment/packages/{id}
+- PUT /api/admin/settings
+- POST /api/admin/settings/qr-code
+- POST /api/admin/calculate-roi
+- GET /api/admin/roi-scheduler/status
+
+---
+
+## Backlog / Future Tasks
+
+### P1 - High Priority
+- [ ] Full mobile responsiveness review
+- [ ] Comprehensive error handling & loading states
+- [ ] Security hardening (XSS, CSRF protection)
+- [ ] Rate limiting on API endpoints
+
+### P2 - Medium Priority
+- [ ] Password reset functionality
+- [ ] Two-factor authentication
+- [ ] Admin user management (add/edit/delete)
+- [ ] Export transaction history (CSV/PDF)
+
+### P3 - Nice to Have
+- [ ] Dark/Light theme toggle
+- [ ] Multi-language support
+- [ ] Push notifications
+- [ ] Advanced analytics dashboard
+
+---
+
+## Known Issues
+1. **SendGrid 403 Error**: The provided API key may have permission restrictions. Emails fall back to database logging - verify SendGrid sender email is authenticated.
+
+---
+
+## Changelog
+
+### Jan 30, 2026
+- Completed commission system refactor (two-tiered model)
+- Added landing page FAQ, Testimonials, Active Packages slider
+- Updated footer year to 2026
+- Renamed "Withdrawable" to "Cash Wallet" on dashboard
+- Added hover animations to dashboard cards
+- Fixed admin deposits modal (scrollable with close button)
+- Updated admin packages form with "Profit Share" labels
+- Configured SendGrid API with fallback mechanism
+
+### Previous
+- Initial platform setup
+- User authentication and registration
+- Investment package system
+- Deposit/withdrawal flows
+- Automatic ROI scheduler
+- Email notification system
