@@ -143,81 +143,80 @@ async def calculate_user_level(user_id: str, total_investment: float) -> int:
     return 1
 
 async def distribute_commissions(staking_entry_id: str, user_id: str, amount: float, background_tasks: BackgroundTasks = None):
-    """Distribute commissions to upline based on their package levels"""
+    """
+    Distribute DIRECT commission to Level 1 referrer only (on deposit/investment)
+    Level 2-6 profit share is handled by ROI scheduler during daily ROI distribution
+    """
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     if not user or not user.get("referred_by"):
         return
     
-    # Walk up the referral chain (up to 6 levels)
-    current_ref = user.get("referred_by")
+    # Only distribute to DIRECT referrer (Level 1)
+    direct_referrer_id = user.get("referred_by")
     
-    for level_depth in range(1, 7):  # Levels 1-6
-        if not current_ref:
-            break
+    upline = await db.users.find_one({"user_id": direct_referrer_id}, {"_id": 0})
+    if not upline:
+        return
+    
+    upline_level = upline.get("level", 1)
+    
+    # Get upline's package to determine direct commission rate
+    package = await db.investment_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
+    if not package:
+        package = await db.membership_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
+    
+    if not package:
+        return
+    
+    # Check if Level 1 is enabled
+    levels_enabled = package.get("levels_enabled", [1, 2, 3])
+    if 1 not in levels_enabled:
+        return
+    
+    # Get direct commission percentage
+    commission_percentage = package.get("commission_direct", 0.0)
+    if commission_percentage == 0:
+        commission_percentage = package.get("commission_lv_a", 0.0)
+    
+    if commission_percentage > 0:
+        commission_amount = amount * (commission_percentage / 100)
         
-        upline = await db.users.find_one({"user_id": current_ref}, {"_id": 0})
-        if not upline:
-            break
-        
-        upline_level = upline.get("level", 1)
-        
-        # Get upline's package to determine commission rates
-        package = await db.investment_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
-        if not package:
-            # Fallback to old system
-            package = await db.membership_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
-        
-        if not package:
-            current_ref = upline.get("referred_by")
-            continue
-        
-        # Check if this level is enabled for commissions
-        levels_enabled = package.get("levels_enabled", [1, 2, 3])
-        if level_depth not in levels_enabled:
-            current_ref = upline.get("referred_by")
-            continue
-        
-        # Get commission percentage for this level
-        commission_key_map = {
-            1: "commission_direct",
-            2: "commission_level_2",
-            3: "commission_level_3",
-            4: "commission_level_4",
-            5: "commission_level_5",
-            6: "commission_level_6"
+        commission_doc = {
+            "commission_id": str(uuid.uuid4()),
+            "user_id": upline["user_id"],
+            "from_user_id": user_id,
+            "from_user_name": user.get("full_name", "Unknown"),
+            "amount": commission_amount,
+            "commission_type": "DIRECT_DEPOSIT",
+            "level_depth": 1,
+            "percentage": commission_percentage,
+            "source_type": "deposit_commission",
+            "source_id": staking_entry_id,
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
+        await db.commissions.insert_one(commission_doc)
         
-        # Fallback for old system
-        old_commission_key_map = {
-            1: "commission_lv_a",
-            2: "commission_lv_b",
-            3: "commission_lv_c"
-        }
+        # Update upline balances
+        await db.users.update_one(
+            {"user_id": upline["user_id"]},
+            {"$inc": {"commission_balance": commission_amount, "wallet_balance": commission_amount}}
+        )
         
-        commission_key = commission_key_map.get(level_depth)
-        commission_percentage = package.get(commission_key, 0.0)
-        
-        if commission_percentage == 0 and level_depth <= 3:
-            old_key = old_commission_key_map.get(level_depth)
-            commission_percentage = package.get(old_key, 0.0)
-        
-        if commission_percentage > 0:
-            commission_amount = amount * (commission_percentage / 100)
+        # Send commission notification email
+        try:
+            updated_upline = await db.users.find_one({"user_id": upline["user_id"]}, {"_id": 0})
+            total_commission = updated_upline.get("commission_balance", commission_amount) if updated_upline else commission_amount
             
-            commission_doc = {
-                "commission_id": str(uuid.uuid4()),
-                "user_id": upline["user_id"],
-                "from_user_id": user_id,
-                "from_user_name": user.get("full_name", "Unknown"),
-                "amount": commission_amount,
-                "commission_type": f"LEVEL_{level_depth}",
-                "level_depth": level_depth,
-                "percentage": commission_percentage,
-                "source_type": "staking",
-                "source_id": staking_entry_id,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            await db.commissions.insert_one(commission_doc)
+            await email_service.send_commission_notification(
+                upline["email"],
+                upline["full_name"],
+                commission_amount,
+                user.get("full_name", "Team Member"),
+                1,
+                total_commission
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send commission notification: {e}")
             
             # Update upline balances
             await db.users.update_one(
