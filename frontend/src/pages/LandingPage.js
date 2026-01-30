@@ -12,6 +12,72 @@ const LandingPage = () => {
   const [packages, setPackages] = useState([]);
   const [cryptoData, setCryptoData] = useState([]);
   const [loadingPrices, setLoadingPrices] = useState(true);
+  const [activePackageIndex, setActivePackageIndex] = useState(0);
+  const [openFaq, setOpenFaq] = useState(null);
+
+  // FAQ Data
+  const faqData = [
+    {
+      question: "How do I start investing with MINEX GLOBAL?",
+      answer: "Simply register using a referral link, verify your email, make a deposit, and choose an investment package that suits your budget. Your daily ROI will start accumulating automatically."
+    },
+    {
+      question: "What is the minimum investment amount?",
+      answer: "The minimum investment starts at $50 for Level 1. Higher levels have higher minimums but also offer better daily ROI rates, reaching up to 4.1% daily at Level 6."
+    },
+    {
+      question: "How does the referral commission system work?",
+      answer: "You earn direct commission (up to 18%) when your direct referrals make deposits. Additionally, you receive profit sharing from the daily ROI earnings of your team members across multiple levels."
+    },
+    {
+      question: "When can I withdraw my earnings?",
+      answer: "Withdrawals are processed on designated days (typically 1st and 15th of each month). You can withdraw your ROI and commission earnings anytime during these windows."
+    },
+    {
+      question: "Is my investment secure?",
+      answer: "We use bank-grade security protocols, encrypted transactions, and secure wallet infrastructure. All deposits are held in cold storage with multi-signature protection."
+    },
+    {
+      question: "What happens after my investment duration ends?",
+      answer: "After your investment package duration completes (typically 365 days), your original capital is returned to your wallet balance, plus all the ROI you've earned throughout the period."
+    }
+  ];
+
+  // Testimonials Data
+  const testimonials = [
+    {
+      name: "Michael R.",
+      location: "United States",
+      image: "https://randomuser.me/api/portraits/men/32.jpg",
+      text: "Started with just $500 and now earning consistently every day. The automated ROI system is incredible!",
+      earnings: "$12,450",
+      rating: 5
+    },
+    {
+      name: "Sarah K.",
+      location: "United Kingdom",
+      image: "https://randomuser.me/api/portraits/women/44.jpg",
+      text: "The referral program helped me build a passive income stream. Best crypto platform I've used.",
+      earnings: "$28,320",
+      rating: 5
+    },
+    {
+      name: "James L.",
+      location: "Australia",
+      image: "https://randomuser.me/api/portraits/men/52.jpg",
+      text: "Transparent, reliable, and consistent returns. MINEX has changed my financial future.",
+      earnings: "$45,890",
+      rating: 5
+    },
+    {
+      name: "Emma W.",
+      location: "Canada",
+      image: "https://randomuser.me/api/portraits/women/68.jpg",
+      text: "Customer support is amazing and withdrawals are always processed on time. Highly recommend!",
+      earnings: "$18,670",
+      rating: 5
+    }
+  ];
 
   useEffect(() => {
     loadPackages();
@@ -20,6 +86,16 @@ const LandingPage = () => {
     const interval = setInterval(loadCryptoPrices, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-rotate active packages
+  useEffect(() => {
+    if (packages.length > 0) {
+      const timer = setInterval(() => {
+        setActivePackageIndex((prev) => (prev + 1) % packages.length);
+      }, 4000);
+      return () => clearInterval(timer);
+    }
+  }, [packages.length]);
 
   const loadPackages = async () => {
     try {
