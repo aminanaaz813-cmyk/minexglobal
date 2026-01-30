@@ -90,9 +90,11 @@ export const adminAPI = {
   createMembershipPackage: (data) => api.post('/admin/membership/packages', data),
   updateMembershipPackage: (packageId, data) => api.put(`/admin/membership/packages/${packageId}`, data),
   // New investment packages
+  getInvestmentPackages: () => api.get('/admin/investment/packages'),
   createInvestmentPackage: (data) => api.post('/admin/investment/packages', data),
   updateInvestmentPackage: (packageId, data) => api.put(`/admin/investment/packages/${packageId}`, data),
   deleteInvestmentPackage: (packageId) => api.delete(`/admin/investment/packages/${packageId}`),
+  togglePackageStatus: (packageId) => api.patch(`/admin/investment/packages/${packageId}/toggle`),
   // Legacy staking packages
   createStakingPackage: (data) => api.post('/admin/staking/packages', data),
   updateStakingPackage: (stakingId, data) => api.put(`/admin/staking/packages/${stakingId}`, data),
