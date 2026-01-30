@@ -1176,6 +1176,27 @@ async def delete_investment_package(package_id: str, admin: User = Depends(get_a
     await db.investment_packages.update_one({"package_id": package_id}, {"$set": {"is_active": False}})
     return {"message": "Package deactivated"}
 
+@api_router.patch("/admin/investment/packages/{package_id}/toggle")
+async def toggle_package_status(package_id: str, admin: User = Depends(get_admin_user)):
+    """Toggle package active/inactive status"""
+    package = await db.investment_packages.find_one({"package_id": package_id}, {"_id": 0})
+    if not package:
+        raise HTTPException(status_code=404, detail="Package not found")
+    
+    new_status = not package.get("is_active", True)
+    await db.investment_packages.update_one(
+        {"package_id": package_id},
+        {"$set": {"is_active": new_status}}
+    )
+    
+    return {"message": f"Package {'activated' if new_status else 'deactivated'}", "is_active": new_status}
+
+@api_router.get("/admin/investment/packages")
+async def get_all_investment_packages(admin: User = Depends(get_admin_user)):
+    """Get all investment packages (including inactive) for admin"""
+    packages = await db.investment_packages.find({}, {"_id": 0}).sort("level", 1).to_list(20)
+    return packages
+
 # Admin Package Management - Legacy Membership Packages
 @api_router.post("/admin/membership/packages")
 async def create_membership_package(package: MembershipPackage, admin: User = Depends(get_admin_user)):
