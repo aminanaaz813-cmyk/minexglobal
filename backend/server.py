@@ -19,7 +19,7 @@ from models import (
     Withdrawal, WithdrawalCreate, WithdrawalStatus, Staking, StakingCreate, StakingCreateLegacy, StakingStatus,
     Commission, ROITransaction, AdminSettings, DashboardStats, AdminDashboardStats,
     PaymentMethod, InvestmentPackage, EmailVerificationRequest, EmailVerificationVerify,
-    Transaction, TransactionType, PasswordChangeRequest
+    Transaction, TransactionType, PasswordChangeRequest, ForgotPasswordRequest, ResetPasswordRequest, VerifyResetCodeRequest
 )
 from auth import verify_password, get_password_hash, create_access_token, decode_access_token
 from email_service import email_service
