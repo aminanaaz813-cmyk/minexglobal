@@ -107,6 +107,19 @@ class PasswordChangeRequest(BaseModel):
     new_password: str
     confirm_password: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+    confirm_password: str
+
+class VerifyResetCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+
 # Unified Investment Package Model (formerly MembershipPackage + StakingPackage combined)
 class InvestmentPackage(BaseModel):
     model_config = ConfigDict(extra="ignore")
