@@ -175,7 +175,6 @@ Build a production-ready crypto investment platform called "MINEX GLOBAL" with:
 - [ ] Rate limiting on API endpoints
 
 ### P2 - Medium Priority
-- [ ] Password reset functionality
 - [ ] Two-factor authentication
 - [ ] Admin user management (add/edit/delete)
 - [ ] Export transaction history (CSV/PDF)
