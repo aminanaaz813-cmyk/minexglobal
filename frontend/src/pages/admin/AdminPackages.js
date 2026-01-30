@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { adminAPI, investmentAPI } from '@/api';
+import { adminAPI } from '@/api';
 import { formatCurrency } from '@/utils';
 import { toast } from 'sonner';
-import { Plus, Edit, Save, Trash2, X } from 'lucide-react';
+import { Plus, Edit, Save, Trash2, X, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -41,12 +41,23 @@ const AdminPackages = () => {
 
   const loadPackages = async () => {
     try {
-      const response = await investmentAPI.getPackages();
+      // Use admin endpoint to get ALL packages (including inactive)
+      const response = await adminAPI.getInvestmentPackages();
       setPackages(response.data);
     } catch (error) {
       toast.error('Failed to load packages');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (packageId, currentStatus) => {
+    try {
+      await adminAPI.togglePackageStatus(packageId);
+      toast.success(currentStatus ? 'Package deactivated' : 'Package activated');
+      loadPackages();
+    } catch (error) {
+      toast.error('Failed to toggle package status');
     }
   };
 
