@@ -276,6 +276,119 @@ async def verify_email(request: EmailVerificationVerify):
     
     return {"message": "Email verified successfully", "verified": True}
 
+# ============== PASSWORD RESET ENDPOINTS ==============
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest, background_tasks: BackgroundTasks):
+    """Send password reset code to email"""
+    # Check if user exists
+    user = await db.users.find_one({"email": request.email}, {"_id": 0})
+    if not user:
+        # Don't reveal if email exists or not for security
+        return {"message": "If the email exists, a reset code has been sent", "email": request.email}
+    
+    # Generate reset code
+    code = generate_verification_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    
+    # Store reset record
+    reset_doc = {
+        "reset_id": str(uuid.uuid4()),
+        "email": request.email,
+        "code": code,
+        "expires_at": expires_at.isoformat(),
+        "is_used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Remove old reset requests for this email
+    await db.password_resets.delete_many({"email": request.email})
+    await db.password_resets.insert_one(reset_doc)
+    
+    # Send email in background
+    reset_link = f"/reset-password?email={request.email}"
+    background_tasks.add_task(
+        email_service.send_password_reset,
+        request.email,
+        user.get("full_name", "User"),
+        code,
+        reset_link
+    )
+    
+    return {"message": "If the email exists, a reset code has been sent", "email": request.email}
+
+@api_router.post("/auth/verify-reset-code")
+async def verify_reset_code(request: VerifyResetCodeRequest):
+    """Verify password reset code"""
+    reset = await db.password_resets.find_one({
+        "email": request.email,
+        "code": request.code,
+        "is_used": False
+    }, {"_id": 0})
+    
+    if not reset:
+        raise HTTPException(status_code=400, detail="Invalid reset code")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(reset["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset code expired")
+    
+    return {"message": "Code verified successfully", "valid": True}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: ResetPasswordRequest, background_tasks: BackgroundTasks):
+    """Reset password with verification code"""
+    # Validate passwords match
+    if request.new_password != request.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    
+    # Validate password strength
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Verify reset code
+    reset = await db.password_resets.find_one({
+        "email": request.email,
+        "code": request.code,
+        "is_used": False
+    }, {"_id": 0})
+    
+    if not reset:
+        raise HTTPException(status_code=400, detail="Invalid reset code")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(reset["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset code expired")
+    
+    # Get user
+    user = await db.users.find_one({"email": request.email}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update password
+    hashed_password = get_password_hash(request.new_password)
+    await db.users.update_one(
+        {"email": request.email},
+        {"$set": {"hashed_password": hashed_password, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Mark reset code as used
+    await db.password_resets.update_one(
+        {"reset_id": reset["reset_id"]},
+        {"$set": {"is_used": True}}
+    )
+    
+    # Send confirmation email
+    background_tasks.add_task(
+        email_service.send_password_change_confirmation,
+        request.email,
+        user.get("full_name", "User")
+    )
+    
+    return {"message": "Password reset successfully. You can now login with your new password."}
+
 # ============== AUTH ENDPOINTS ==============
 
 @api_router.post("/auth/register")
