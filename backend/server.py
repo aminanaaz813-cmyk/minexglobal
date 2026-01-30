@@ -1201,7 +1201,6 @@ async def get_system_logs(admin: User = Depends(get_admin_user), limit: int = 50
     """Get system logs including ROI distributions"""
     logs = await db.system_logs.find({}, {"_id": 0}).sort("run_time", -1).to_list(limit)
     return logs
-    }
 
 # ============== INCLUDE ROUTER AND MIDDLEWARE ==============
 
