@@ -189,13 +189,23 @@ Build a production-ready crypto investment platform called "MINEX GLOBAL" with:
 ---
 
 ## Known Issues
-1. **SendGrid 403 Error**: The provided API key may have permission restrictions. Emails fall back to database logging - verify SendGrid sender email is authenticated.
+1. **Resend Email Test Mode**: The Resend API key is in test mode - emails can only be sent to verified addresses. For production, verify a domain at resend.com/domains. Emails are logged to the database as a fallback.
 
 ---
 
 ## Changelog
 
-### Jan 30, 2026
+### Jan 30, 2026 (Session 2)
+- Replaced SendGrid with Resend for email sending
+- Implemented password reset functionality:
+  - POST /api/auth/forgot-password - sends reset code
+  - POST /api/auth/verify-reset-code - validates code
+  - POST /api/auth/reset-password - updates password
+- Created ForgotPasswordPage with 3-step flow (email → code → new password → success)
+- Added "Forgot Password?" link to login page
+- Emails logged to database as fallback when Resend fails
+
+### Jan 30, 2026 (Session 1)
 - Completed commission system refactor (two-tiered model)
 - Added landing page FAQ, Testimonials, Active Packages slider
 - Updated footer year to 2026
