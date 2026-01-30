@@ -7,6 +7,7 @@ import './App.css';
 import LandingPage from '@/pages/LandingPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 
 import UserLayout from '@/layouts/UserLayout';
 import UserDashboard from '@/pages/user/UserDashboard';
