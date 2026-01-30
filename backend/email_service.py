@@ -23,14 +23,26 @@ except ImportError:
 
 class EmailService:
     def __init__(self):
+        self.api_key = None
+        self.sender_email = 'admin@minexglobal.online'
+        self.is_configured = False
+        self.db = None  # Will be set by server.py
+    
+    def initialize(self):
+        """Initialize email service after environment variables are loaded"""
         self.api_key = os.environ.get('SENDGRID_API_KEY')
         self.sender_email = os.environ.get('SENDER_EMAIL', 'admin@minexglobal.online')
         self.is_configured = bool(self.api_key) and SENDGRID_AVAILABLE
-        self.db = None  # Will be set by server.py
+        if self.is_configured:
+            logger.info(f"SendGrid email service configured with sender: {self.sender_email}")
+        else:
+            logger.warning("SendGrid not configured - emails will be logged to database")
         
     def set_db(self, db):
         """Set database reference for logging emails"""
         self.db = db
+        # Initialize when db is set (after env vars are loaded)
+        self.initialize()
         
     def _get_client(self):
         if not self.is_configured:
