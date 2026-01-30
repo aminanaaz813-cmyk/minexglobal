@@ -404,6 +404,206 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Active Packages Slider Section */}
+      <section className="py-16 md:py-20 relative bg-gradient-to-b from-transparent via-blue-950/10 to-transparent" data-testid="active-packages-slider">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mb-10 md:mb-12"
+          >
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-3 md:mb-4">
+              <span className="text-gradient">Active</span> Investment Packages
+            </h2>
+            <p className="text-gray-400 text-sm md:text-base">Real-time overview of our investment tiers</p>
+          </motion.div>
+
+          {packages.length > 0 && (
+            <div className="relative">
+              <div className="flex justify-center items-center gap-4 mb-6">
+                <button
+                  onClick={() => setActivePackageIndex((prev) => (prev - 1 + packages.length) % packages.length)}
+                  className="p-3 glass rounded-full hover:bg-white/10 transition"
+                  data-testid="slider-prev"
+                >
+                  <ChevronLeft className="w-6 h-6 text-white" />
+                </button>
+                <div className="flex gap-2">
+                  {packages.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActivePackageIndex(idx)}
+                      className={`w-3 h-3 rounded-full transition-all ${idx === activePackageIndex ? 'bg-blue-500 w-8' : 'bg-gray-600 hover:bg-gray-500'}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => setActivePackageIndex((prev) => (prev + 1) % packages.length)}
+                  className="p-3 glass rounded-full hover:bg-white/10 transition"
+                  data-testid="slider-next"
+                >
+                  <ChevronRight className="w-6 h-6 text-white" />
+                </button>
+              </div>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activePackageIndex}
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -50 }}
+                  transition={{ duration: 0.3 }}
+                  className="max-w-lg mx-auto"
+                >
+                  {packages[activePackageIndex] && (
+                    <div className="glass rounded-2xl p-8 relative overflow-hidden border border-blue-500/30">
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-violet-500"></div>
+                      <div className="absolute top-4 right-4 px-4 py-2 bg-gradient-to-r from-blue-600 to-violet-600 text-white text-sm font-bold rounded-full">
+                        Level {packages[activePackageIndex].level}
+                      </div>
+                      <div className="mt-6">
+                        <h3 className="text-2xl font-bold text-white mb-2">{packages[activePackageIndex].name || `Tier ${packages[activePackageIndex].level}`}</h3>
+                        <div className="text-4xl font-black text-gradient mb-6">{formatCurrency(packages[activePackageIndex].min_investment)}</div>
+                        
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                          <div className="p-4 bg-green-500/10 rounded-xl text-center">
+                            <div className="text-3xl font-black text-green-400">{packages[activePackageIndex].daily_roi}%</div>
+                            <div className="text-sm text-gray-400">Daily ROI</div>
+                          </div>
+                          <div className="p-4 bg-blue-500/10 rounded-xl text-center">
+                            <div className="text-3xl font-black text-blue-400">{packages[activePackageIndex].annual_roi}%</div>
+                            <div className="text-sm text-gray-400">Annual ROI</div>
+                          </div>
+                        </div>
+
+                        <Link to="/register">
+                          <button className="w-full btn-primary py-4 font-bold text-lg">
+                            Start Investing Now
+                          </button>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section className="py-16 md:py-20 relative" data-testid="testimonials-section">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mb-10 md:mb-16"
+          >
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-3 md:mb-4">
+              What Our <span className="text-gradient">Investors</span> Say
+            </h2>
+            <p className="text-gray-400 text-sm md:text-base">Real success stories from our community</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            {testimonials.map((testimonial, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
+                className="glass rounded-xl p-6 relative group hover:border-blue-500/30 transition-all"
+                data-testid={`testimonial-${idx}`}
+              >
+                <Quote className="absolute top-4 right-4 w-8 h-8 text-blue-500/20" />
+                <div className="flex items-center gap-3 mb-4">
+                  <img src={testimonial.image} alt={testimonial.name} className="w-12 h-12 rounded-full object-cover border-2 border-blue-500/30" />
+                  <div>
+                    <div className="text-white font-bold">{testimonial.name}</div>
+                    <div className="text-gray-500 text-sm">{testimonial.location}</div>
+                  </div>
+                </div>
+                <div className="flex gap-1 mb-3">
+                  {[...Array(testimonial.rating)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                  ))}
+                </div>
+                <p className="text-gray-300 text-sm mb-4 leading-relaxed">"{testimonial.text}"</p>
+                <div className="pt-3 border-t border-white/10">
+                  <div className="text-xs text-gray-500">Total Earnings</div>
+                  <div className="text-xl font-bold text-green-400">{testimonial.earnings}</div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-16 md:py-20 relative bg-gradient-to-b from-transparent via-purple-950/10 to-transparent" data-testid="faq-section">
+        <div className="max-w-3xl mx-auto px-4 md:px-8">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="text-center mb-10 md:mb-12"
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/10 border border-purple-500/30 rounded-full mb-4">
+              <HelpCircle className="w-5 h-5 text-purple-400" />
+              <span className="text-purple-300 text-sm font-bold">Got Questions?</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-3 md:mb-4">
+              Frequently Asked <span className="text-gradient">Questions</span>
+            </h2>
+            <p className="text-gray-400 text-sm md:text-base">Everything you need to know about MINEX GLOBAL</p>
+          </motion.div>
+
+          <div className="space-y-3">
+            {faqData.map((faq, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.05 }}
+                className="glass rounded-xl overflow-hidden"
+                data-testid={`faq-item-${idx}`}
+              >
+                <button
+                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                  className="w-full px-6 py-5 flex justify-between items-center text-left hover:bg-white/5 transition"
+                >
+                  <span className="text-white font-bold pr-4">{faq.question}</span>
+                  {openFaq === idx ? (
+                    <ChevronUp className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                  )}
+                </button>
+                <AnimatePresence>
+                  {openFaq === idx && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-6 pb-5 text-gray-400 text-sm leading-relaxed border-t border-white/5 pt-4">
+                        {faq.answer}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-16 md:py-20 relative">
         <div className="max-w-4xl mx-auto px-4 md:px-8 text-center">
