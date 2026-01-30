@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { TypeAnimation } from 'react-type-animation';
 import Marquee from 'react-fast-marquee';
-import { TrendingUp, Users, Shield, Zap, Wallet, ArrowRight, Award, Globe, Lock, Smartphone, RefreshCw } from 'lucide-react';
+import { TrendingUp, Users, Shield, Zap, Wallet, ArrowRight, Award, Globe, Lock, Smartphone, RefreshCw, ChevronDown, ChevronUp, Star, ChevronLeft, ChevronRight, Quote, HelpCircle } from 'lucide-react';
 import { membershipAPI, cryptoAPI } from '@/api';
 import { formatCurrency } from '@/utils';
 
