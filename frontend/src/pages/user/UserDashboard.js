@@ -50,42 +50,78 @@ const UserDashboard = () => {
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {/* Withdrawable Balance */}
+        {/* Cash Wallet Balance */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-blue-500/10 to-cyan-500/10"
+          whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(59, 130, 246, 0.3)" }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 cursor-pointer relative overflow-hidden group"
           data-testid="total-balance-card"
         >
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/5 to-blue-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
           <div className="flex items-center justify-between mb-3">
-            <div className="p-2 md:p-3 bg-blue-500/20 rounded-lg">
+            <motion.div 
+              className="p-2 md:p-3 bg-blue-500/20 rounded-lg"
+              whileHover={{ rotate: [0, -10, 10, 0] }}
+              transition={{ duration: 0.5 }}
+            >
               <Wallet className="w-5 h-5 md:w-6 md:h-6 text-blue-300" />
-            </div>
-            <ArrowUpRight className="w-4 h-4 text-green-400" />
+            </motion.div>
+            <motion.div
+              animate={{ y: [0, -3, 0] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+            >
+              <ArrowUpRight className="w-4 h-4 text-green-400" />
+            </motion.div>
           </div>
-          <div className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" data-testid="total-balance-value">
+          <motion.div 
+            className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" 
+            data-testid="total-balance-value"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200 }}
+          >
             {formatCurrency(stats?.total_balance || 0)}
-          </div>
-          <div className="text-xs md:text-sm text-blue-200">Withdrawable</div>
+          </motion.div>
+          <div className="text-xs md:text-sm text-blue-200">Cash Wallet</div>
         </motion.div>
 
         {/* ROI Earnings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-green-500/10 to-emerald-500/10"
+          whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(34, 197, 94, 0.3)" }}
+          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-green-500/10 to-emerald-500/10 cursor-pointer relative overflow-hidden group"
           data-testid="roi-balance-card"
         >
+          <div className="absolute inset-0 bg-gradient-to-r from-green-500/0 via-green-500/5 to-green-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
           <div className="flex items-center justify-between mb-3">
-            <div className="p-2 md:p-3 bg-green-500/20 rounded-lg">
+            <motion.div 
+              className="p-2 md:p-3 bg-green-500/20 rounded-lg"
+              whileHover={{ rotate: [0, -10, 10, 0] }}
+              transition={{ duration: 0.5 }}
+            >
               <TrendingUp className="w-5 h-5 md:w-6 md:h-6 text-green-300" />
-            </div>
-            <span className="text-green-300 text-xs font-bold bg-green-500/20 px-2 py-0.5 rounded-full">{stats?.daily_roi_percentage}%</span>
+            </motion.div>
+            <motion.span 
+              className="text-green-300 text-xs font-bold bg-green-500/20 px-2 py-0.5 rounded-full"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+            >
+              {stats?.daily_roi_percentage}%
+            </motion.span>
           </div>
-          <div className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" data-testid="roi-balance-value">
+          <motion.div 
+            className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" 
+            data-testid="roi-balance-value"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200 }}
+          >
             {formatCurrency(stats?.roi_balance || 0)}
-          </div>
+          </motion.div>
           <div className="text-xs md:text-sm text-green-200">ROI Earned</div>
         </motion.div>
 
@@ -93,19 +129,36 @@ const UserDashboard = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-purple-500/10 to-pink-500/10"
+          whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(168, 85, 247, 0.3)" }}
+          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-purple-500/10 to-pink-500/10 cursor-pointer relative overflow-hidden group"
           data-testid="commission-balance-card"
         >
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/5 to-purple-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
           <div className="flex items-center justify-between mb-3">
-            <div className="p-2 md:p-3 bg-purple-500/20 rounded-lg">
+            <motion.div 
+              className="p-2 md:p-3 bg-purple-500/20 rounded-lg"
+              whileHover={{ rotate: [0, -10, 10, 0] }}
+              transition={{ duration: 0.5 }}
+            >
               <Gift className="w-5 h-5 md:w-6 md:h-6 text-purple-300" />
-            </div>
-            <ArrowUpRight className="w-4 h-4 text-green-400" />
+            </motion.div>
+            <motion.div
+              animate={{ y: [0, -3, 0] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "easeInOut", delay: 0.3 }}
+            >
+              <ArrowUpRight className="w-4 h-4 text-green-400" />
+            </motion.div>
           </div>
-          <div className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" data-testid="commission-balance-value">
+          <motion.div 
+            className="text-xl md:text-2xl font-bold text-white mb-1 font-mono" 
+            data-testid="commission-balance-value"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200 }}
+          >
             {formatCurrency(stats?.commission_balance || 0)}
-          </div>
+          </motion.div>
           <div className="text-xs md:text-sm text-purple-200">Commissions</div>
         </motion.div>
 
@@ -113,18 +166,30 @@ const UserDashboard = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-orange-500/10 to-yellow-500/10"
+          whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(249, 115, 22, 0.3)" }}
+          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.3 }}
+          className="glass rounded-xl p-4 md:p-5 bg-gradient-to-br from-orange-500/10 to-yellow-500/10 cursor-pointer relative overflow-hidden group"
           data-testid="team-card"
         >
+          <div className="absolute inset-0 bg-gradient-to-r from-orange-500/0 via-orange-500/5 to-orange-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
           <div className="flex items-center justify-between mb-3">
-            <div className="p-2 md:p-3 bg-orange-500/20 rounded-lg">
+            <motion.div 
+              className="p-2 md:p-3 bg-orange-500/20 rounded-lg"
+              whileHover={{ rotate: [0, -10, 10, 0] }}
+              transition={{ duration: 0.5 }}
+            >
               <Users className="w-5 h-5 md:w-6 md:h-6 text-orange-300" />
-            </div>
+            </motion.div>
           </div>
-          <div className="text-xl md:text-2xl font-bold text-white mb-1" data-testid="team-count-value">
+          <motion.div 
+            className="text-xl md:text-2xl font-bold text-white mb-1" 
+            data-testid="team-count-value"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200 }}
+          >
             {stats?.direct_referrals || 0} / {stats?.indirect_referrals || 0}
-          </div>
+          </motion.div>
           <div className="text-xs md:text-sm text-orange-200">Direct / Indirect</div>
         </motion.div>
       </div>
