@@ -102,6 +102,17 @@ export const adminAPI = {
     return api.post('/admin/settings/qr-code', formData);
   },
   calculateROI: () => api.post('/admin/calculate-roi'),
+  // ROI Scheduler
+  getROISchedulerStatus: () => api.get('/admin/roi-scheduler/status'),
+  setROIScheduleTime: (hour, minute) => api.post('/admin/roi-scheduler/set-time', null, { params: { hour, minute } }),
+  // Logs
+  getEmailLogs: () => api.get('/admin/email-logs'),
+  getSystemLogs: () => api.get('/admin/system-logs'),
+};
+    formData.append('file', file);
+    return api.post('/admin/settings/qr-code', formData);
+  },
+  calculateROI: () => api.post('/admin/calculate-roi'),
 };
 
 export default api;
