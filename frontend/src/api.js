@@ -109,10 +109,5 @@ export const adminAPI = {
   getEmailLogs: () => api.get('/admin/email-logs'),
   getSystemLogs: () => api.get('/admin/system-logs'),
 };
-    formData.append('file', file);
-    return api.post('/admin/settings/qr-code', formData);
-  },
-  calculateROI: () => api.post('/admin/calculate-roi'),
-};
 
 export default api;
