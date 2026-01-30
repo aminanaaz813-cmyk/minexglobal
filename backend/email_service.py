@@ -78,7 +78,7 @@ class EmailService:
                     {content}
                 </div>
                 <div class="footer">
-                    <p>© 2025 MINEX GLOBAL. All rights reserved.</p>
+                    <p>© 2026 MINEX GLOBAL. All rights reserved.</p>
                     <p>This is an automated message from admin@minexglobal.online</p>
                     <p>Please do not reply directly to this email.</p>
                 </div>

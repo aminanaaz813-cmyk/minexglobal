@@ -355,7 +355,7 @@ const LandingPage = () => {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
               <img src="https://customer-assets.emergentagent.com/job_a9d66ba7-0c44-4716-b6dc-8595a53033f1/artifacts/pwb3ur38_minxlogo.png" alt="MINEX" className="h-8 mx-auto md:mx-0" />
-              <p className="text-gray-500 text-xs md:text-sm mt-2">© 2025 MINEX GLOBAL. All rights reserved.</p>
+              <p className="text-gray-500 text-xs md:text-sm mt-2">© 2026 MINEX GLOBAL. All rights reserved.</p>
             </div>
             <div className="flex space-x-6">
               <Link to="/login" className="text-gray-400 hover:text-white transition text-sm">Login</Link>
