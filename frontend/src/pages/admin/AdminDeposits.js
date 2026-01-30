@@ -173,13 +173,22 @@ const AdminDeposits = () => {
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="bg-gray-950 border-white/10 max-w-2xl" data-testid="deposit-detail-dialog">
+        <DialogContent className="bg-gray-950 border-white/10 max-w-2xl max-h-[90vh] overflow-hidden flex flex-col" data-testid="deposit-detail-dialog">
           {selectedDeposit && (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-2xl text-white">Deposit Details</DialogTitle>
+              <DialogHeader className="flex-shrink-0">
+                <div className="flex justify-between items-center">
+                  <DialogTitle className="text-2xl text-white">Deposit Details</DialogTitle>
+                  <button
+                    onClick={() => setShowDialog(false)}
+                    className="p-2 hover:bg-gray-800 rounded-lg transition"
+                    data-testid="close-deposit-dialog"
+                  >
+                    <XCircle className="w-5 h-5 text-gray-400 hover:text-white" />
+                  </button>
+                </div>
               </DialogHeader>
-              <div className="space-y-4 mt-4">
+              <div className="overflow-y-auto flex-1 pr-2 space-y-4 mt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-gray-400">Amount</div>
@@ -190,8 +199,9 @@ const AdminDeposits = () => {
                     <div className="text-xl text-white capitalize">{selectedDeposit.status}</div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-400">User ID</div>
-                    <div className="text-sm text-white font-mono">{selectedDeposit.user_id}</div>
+                    <div className="text-sm text-gray-400">User</div>
+                    <div className="text-sm text-white">{selectedDeposit.user_name || 'Unknown'}</div>
+                    <div className="text-xs text-gray-500">{selectedDeposit.user_email || 'N/A'}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-400">Created At</div>
@@ -211,14 +221,20 @@ const AdminDeposits = () => {
                 {selectedDeposit.screenshot_url && (
                   <div>
                     <div className="text-sm text-gray-400 mb-2">Transaction Screenshot</div>
-                    <div className="border border-white/10 rounded-lg p-2">
-                      <img src={selectedDeposit.screenshot_url} alt="Transaction" className="w-full h-auto rounded" />
+                    <div className="border border-white/10 rounded-lg p-2 max-h-[400px] overflow-y-auto">
+                      <img 
+                        src={selectedDeposit.screenshot_url} 
+                        alt="Transaction" 
+                        className="w-full h-auto rounded cursor-pointer hover:opacity-90 transition"
+                        onClick={() => window.open(selectedDeposit.screenshot_url, '_blank')}
+                      />
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">Click image to open full size</p>
                   </div>
                 )}
 
                 {selectedDeposit.status === 'pending' && (
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex gap-3 pt-4 border-t border-white/10">
                     <button
                       onClick={() => handleApprove(selectedDeposit.deposit_id)}
                       className="flex-1 btn-primary flex items-center justify-center gap-2"
