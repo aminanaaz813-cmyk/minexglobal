@@ -50,16 +50,24 @@ Build a production-ready crypto investment platform called "MINEX GLOBAL" with:
 - [x] Admin packages "Direct Comm. / Profit Share" labels
 
 ### Phase 5 - Email Integration (Completed - Jan 30, 2026)
-- [x] SendGrid API integration
-- [x] Graceful fallback to DB logging if SendGrid fails
+- [x] Resend API integration (replaced SendGrid)
+- [x] Graceful fallback to DB logging if Resend fails
 - [x] Email templates for:
   - Verification codes
+  - Password reset codes
   - Deposit approved/rejected
   - Withdrawal approved/rejected
   - Daily ROI notifications
   - Commission notifications
   - Level promotions
   - Password changes
+
+### Phase 6 - Password Reset (Completed - Jan 30, 2026)
+- [x] Forgot password endpoint (sends reset code)
+- [x] Verify reset code endpoint
+- [x] Reset password endpoint
+- [x] Frontend ForgotPasswordPage with 3-step flow
+- [x] "Forgot Password?" link on login page
 
 ---
 
