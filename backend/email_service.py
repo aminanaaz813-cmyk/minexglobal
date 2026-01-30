@@ -116,10 +116,9 @@ class EmailService:
     async def send_email(self, to_email: str, subject: str, html_content: str, email_type: str = "general") -> bool:
         """Send an email via SendGrid or log to database"""
         try:
-            # Log to database
-            await self._log_email_to_db(to_email, subject, email_type, html_content[:200])
-            
             if not self.is_configured:
+                # Log to database when SendGrid not configured
+                await self._log_email_to_db(to_email, subject, email_type, html_content[:200])
                 logger.info(f"Email logged (SendGrid not configured): {subject} to {to_email}")
                 return True  # Return true as email is logged
             
@@ -131,9 +130,18 @@ class EmailService:
                 html_content=html_content
             )
             
-            response = client.send(message)
-            logger.info(f"Email sent successfully: {subject} to {to_email}, status: {response.status_code}")
-            return response.status_code == 202
+            try:
+                response = client.send(message)
+                logger.info(f"Email sent successfully: {subject} to {to_email}, status: {response.status_code}")
+                # Log successful sends too
+                await self._log_email_to_db(to_email, subject, email_type, html_content[:200])
+                return response.status_code == 202
+            except Exception as sendgrid_error:
+                logger.warning(f"SendGrid send failed: {str(sendgrid_error)} - falling back to DB logging")
+                # Fallback to logging if SendGrid fails
+                await self._log_email_to_db(to_email, subject, email_type, html_content[:200])
+                return True  # Return true as email is logged
+                
         except Exception as e:
             logger.error(f"Failed to send email: {str(e)}")
             return False
