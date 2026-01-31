@@ -183,8 +183,9 @@ class ROIScheduler:
                         if datetime.now(timezone.utc) >= end_date:
                             # Mark as completed and return capital
                             if not stake.get("capital_returned", False):
+                                stake_id = stake.get("staking_id") or stake.get("staking_entry_id")
                                 await self.db.staking.update_one(
-                                    {"staking_entry_id": stake["staking_entry_id"]},
+                                    {"staking_id": stake_id},
                                     {"$set": {"status": "completed", "capital_returned": True}}
                                 )
                                 await self.db.users.update_one(
@@ -192,7 +193,7 @@ class ROIScheduler:
                                     {"$inc": {"wallet_balance": amount}}
                                 )
                                 completed_stakes += 1
-                                logger.info(f"Stake completed, capital returned: {stake['staking_entry_id']}")
+                                logger.info(f"Stake completed, capital returned: {stake_id}")
                             continue
                     except Exception as e:
                         logger.warning(f"Error parsing end date for stake {stake['staking_entry_id']}: {e}")
