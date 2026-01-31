@@ -146,7 +146,7 @@ class ROIScheduler:
         Also distributes profit share bonuses to uplines
         Returns summary of the distribution
         """
-        if not self.db:
+        if self.db is None:
             logger.error("Database not configured for ROI scheduler")
             return {"error": "Database not configured"}
         
