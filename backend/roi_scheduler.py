@@ -200,12 +200,13 @@ class ROIScheduler:
                 
                 # Calculate and distribute ROI
                 roi_amount = amount * (daily_roi / 100)
+                stake_id = stake.get("staking_id") or stake.get("staking_entry_id")
                 
                 # Create ROI transaction
                 roi_doc = {
                     "transaction_id": str(uuid.uuid4()),
                     "user_id": user_id,
-                    "staking_entry_id": stake["staking_entry_id"],
+                    "staking_id": stake_id,
                     "amount": roi_amount,
                     "roi_percentage": daily_roi,
                     "created_at": datetime.now(timezone.utc).isoformat(),
@@ -227,7 +228,7 @@ class ROIScheduler:
                 
                 # Update staking entry
                 await self.db.staking.update_one(
-                    {"staking_entry_id": stake["staking_entry_id"]},
+                    {"staking_id": stake_id},
                     {"$inc": {"total_earned": roi_amount},
                      "$set": {"last_yield_date": datetime.now(timezone.utc).isoformat()}}
                 )
@@ -236,7 +237,7 @@ class ROIScheduler:
                 total_roi_distributed += roi_amount
                 
                 # Distribute profit share bonuses to uplines (Level 2-6)
-                await self.distribute_profit_share(user_id, roi_amount, stake["staking_entry_id"])
+                await self.distribute_profit_share(user_id, roi_amount, stake_id)
                 
                 # Send email notification to user
                 if self.email_service:
