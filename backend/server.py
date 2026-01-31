@@ -145,7 +145,7 @@ async def calculate_user_level(user_id: str, total_investment: float) -> int:
 async def distribute_commissions(staking_entry_id: str, user_id: str, amount: float, background_tasks: BackgroundTasks = None):
     """
     Distribute DIRECT commission to Level 1 referrer only (on deposit/investment)
-    Commission rate is based on the INVESTOR'S package, not the upline's package
+    Commission rate is based on the UPLINE's package level
     Level 2-6 profit share is handled by ROI scheduler during daily ROI distribution
     """
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
@@ -159,7 +159,6 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
     # Find the upline by their referral_code OR user_id (handle both formats)
     upline = await db.users.find_one({"referral_code": referrer_code}, {"_id": 0})
     if not upline:
-        # Try finding by user_id as fallback
         upline = await db.users.find_one({"user_id": referrer_code}, {"_id": 0})
     
     if not upline:
@@ -168,40 +167,46 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
     
     logger.info(f"Found upline: {upline.get('email')} for user {user.get('email')}")
     
-    # Get the INVESTOR'S staking to find their package
-    investor_stake = await db.staking.find_one(
-        {"user_id": user_id, "status": StakingStatus.ACTIVE},
+    # Get the UPLINE's active staking to determine their package/level
+    upline_stake = await db.staking.find_one(
+        {"user_id": upline["user_id"], "status": StakingStatus.ACTIVE},
         {"_id": 0}
     )
     
-    if not investor_stake:
-        logger.warning(f"No active staking found for user {user_id}")
+    # Determine upline's package - from staking or by level
+    upline_package = None
+    if upline_stake:
+        upline_package = await db.investment_packages.find_one(
+            {"package_id": upline_stake.get("package_id")},
+            {"_id": 0}
+        )
+    
+    if not upline_package:
+        # Fallback to upline's stored level
+        upline_level = upline.get("level", 1)
+        upline_package = await db.investment_packages.find_one(
+            {"level": upline_level, "is_active": True},
+            {"_id": 0}
+        )
+    
+    if not upline_package:
+        logger.warning(f"No package found for upline {upline.get('email')}")
         return
     
-    # Get the investor's package to determine commission rate
-    package = await db.investment_packages.find_one(
-        {"package_id": investor_stake.get("package_id")},
-        {"_id": 0}
-    )
+    logger.info(f"Upline package: {upline_package.get('name')} (Level {upline_package.get('level')})")
     
-    if not package:
-        logger.warning(f"Package not found for staking {investor_stake.get('package_id')}")
-        return
-    
-    logger.info(f"Investor package: {package.get('name')} (Level {package.get('level')})")
-    
-    # Check if Level 1 commission is enabled for this package
-    levels_enabled = package.get("levels_enabled", [1, 2, 3])
+    # Check if Level 1 commission is enabled for upline's package
+    levels_enabled = upline_package.get("levels_enabled", [1, 2, 3])
     if 1 not in levels_enabled and len(levels_enabled) > 0:
-        logger.info(f"Level 1 not enabled for package {package.get('name')}")
+        logger.info(f"Level 1 not enabled for package {upline_package.get('name')}")
         return
     
-    # Get direct commission percentage from the investor's package
-    commission_percentage = package.get("commission_direct", 0.0)
+    # Get direct commission percentage from the UPLINE's package
+    commission_percentage = upline_package.get("commission_direct", 0.0)
     if commission_percentage == 0:
-        commission_percentage = package.get("commission_lv_a", 0.0)
+        commission_percentage = upline_package.get("commission_lv_a", 0.0)
     
-    logger.info(f"Commission rate from package: {commission_percentage}%")
+    logger.info(f"Commission rate from upline's package: {commission_percentage}%")
     
     if commission_percentage > 0:
         commission_amount = amount * (commission_percentage / 100)
@@ -217,7 +222,7 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
             "percentage": commission_percentage,
             "source_type": "deposit_commission",
             "source_id": staking_entry_id,
-            "package_name": package.get("name", f"Level {package.get('level')}"),
+            "package_name": upline_package.get("name", f"Level {upline_package.get('level')}"),
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.commissions.insert_one(commission_doc)
