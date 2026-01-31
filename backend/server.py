@@ -529,12 +529,38 @@ async def change_password(request: PasswordChangeRequest, current_user: User = D
 
 @api_router.get("/user/dashboard")
 async def get_dashboard(current_user: User = Depends(get_current_user)):
-    # Get current package
-    package = await db.investment_packages.find_one({"level": current_user.level, "is_active": True}, {"_id": 0})
-    if not package:
-        package = await db.membership_packages.find_one({"level": current_user.level, "is_active": True}, {"_id": 0})
+    # Get user's active staking to determine current package
+    active_stake = await db.staking.find_one(
+        {"user_id": current_user.user_id, "status": StakingStatus.ACTIVE},
+        {"_id": 0}
+    )
     
-    daily_roi = package.get("daily_roi", 0.0) if package else 0.0
+    # Get the package from active staking
+    current_package = None
+    actual_level = current_user.level
+    daily_roi = 0.0
+    
+    if active_stake:
+        current_package = await db.investment_packages.find_one(
+            {"package_id": active_stake.get("package_id")}, {"_id": 0}
+        )
+        if current_package:
+            actual_level = current_package.get("level", 1)
+            daily_roi = current_package.get("daily_roi", active_stake.get("daily_roi", 0.0))
+            
+            # Update user level if it doesn't match the package level
+            if current_user.level != actual_level:
+                await db.users.update_one(
+                    {"user_id": current_user.user_id},
+                    {"$set": {"level": actual_level}}
+                )
+        else:
+            daily_roi = active_stake.get("daily_roi", 0.0)
+    else:
+        # Fallback to user's stored level
+        current_package = await db.investment_packages.find_one({"level": current_user.level, "is_active": True}, {"_id": 0})
+        if current_package:
+            daily_roi = current_package.get("daily_roi", 0.0)
     
     # Calculate total commissions
     total_commissions = 0.0
