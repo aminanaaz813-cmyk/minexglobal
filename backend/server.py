@@ -145,6 +145,7 @@ async def calculate_user_level(user_id: str, total_investment: float) -> int:
 async def distribute_commissions(staking_entry_id: str, user_id: str, amount: float, background_tasks: BackgroundTasks = None):
     """
     Distribute DIRECT commission to Level 1 referrer only (on deposit/investment)
+    Commission rate is based on the INVESTOR'S package, not the upline's package
     Level 2-6 profit share is handled by ROI scheduler during daily ROI distribution
     """
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
@@ -167,29 +168,40 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
     
     logger.info(f"Found upline: {upline.get('email')} for user {user.get('email')}")
     
-    upline_level = upline.get("level", 1)
+    # Get the INVESTOR'S staking to find their package
+    investor_stake = await db.staking.find_one(
+        {"user_id": user_id, "status": StakingStatus.ACTIVE},
+        {"_id": 0}
+    )
     
-    # Get upline's package to determine direct commission rate
-    package = await db.investment_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
-    if not package:
-        package = await db.membership_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
-    
-    if not package:
-        logger.warning(f"No package found for upline level {upline_level}")
+    if not investor_stake:
+        logger.warning(f"No active staking found for user {user_id}")
         return
     
-    # Check if Level 1 is enabled
+    # Get the investor's package to determine commission rate
+    package = await db.investment_packages.find_one(
+        {"package_id": investor_stake.get("package_id")},
+        {"_id": 0}
+    )
+    
+    if not package:
+        logger.warning(f"Package not found for staking {investor_stake.get('package_id')}")
+        return
+    
+    logger.info(f"Investor package: {package.get('name')} (Level {package.get('level')})")
+    
+    # Check if Level 1 commission is enabled for this package
     levels_enabled = package.get("levels_enabled", [1, 2, 3])
     if 1 not in levels_enabled and len(levels_enabled) > 0:
-        logger.info(f"Level 1 not enabled for package level {upline_level}")
+        logger.info(f"Level 1 not enabled for package {package.get('name')}")
         return
     
-    # Get direct commission percentage
+    # Get direct commission percentage from the investor's package
     commission_percentage = package.get("commission_direct", 0.0)
     if commission_percentage == 0:
         commission_percentage = package.get("commission_lv_a", 0.0)
     
-    logger.info(f"Commission rate for level {upline_level}: {commission_percentage}%")
+    logger.info(f"Commission rate from package: {commission_percentage}%")
     
     if commission_percentage > 0:
         commission_amount = amount * (commission_percentage / 100)
@@ -205,6 +217,7 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
             "percentage": commission_percentage,
             "source_type": "deposit_commission",
             "source_id": staking_entry_id,
+            "package_name": package.get("name", f"Level {package.get('level')}"),
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.commissions.insert_one(commission_doc)
