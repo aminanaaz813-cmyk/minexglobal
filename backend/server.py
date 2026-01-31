@@ -540,6 +540,74 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
     # Total balance = ROI + Commission (withdrawable)
     total_balance = current_user.roi_balance + current_user.commission_balance
     
+    # Get referral tree for level-wise counts
+    referral_tree = await get_user_referral_tree(current_user.user_id)
+    team_counts = {
+        "level_1": len(referral_tree.get("level_1", [])),
+        "level_2": len(referral_tree.get("level_2", [])),
+        "level_3": len(referral_tree.get("level_3", [])),
+        "level_4": len(referral_tree.get("level_4", [])),
+        "level_5": len(referral_tree.get("level_5", [])),
+        "level_6": len(referral_tree.get("level_6", []))
+    }
+    
+    # Get next level package requirements
+    next_level = current_user.level + 1
+    next_package = await db.investment_packages.find_one({"level": next_level, "is_active": True}, {"_id": 0})
+    
+    next_level_requirements = None
+    promotion_progress = None
+    
+    if next_package:
+        next_level_requirements = {
+            "level": next_level,
+            "name": next_package.get("name", f"Level {next_level}"),
+            "min_investment": next_package.get("min_investment", 0),
+            "direct_required": next_package.get("direct_required", 0),
+            "level_2_required": next_package.get("level_2_required", 0),
+            "level_3_required": next_package.get("level_3_required", 0),
+            "level_4_required": next_package.get("level_4_required", 0),
+            "level_5_required": next_package.get("level_5_required", 0),
+            "level_6_required": next_package.get("level_6_required", 0)
+        }
+        
+        # Calculate progress towards next level
+        promotion_progress = {
+            "investment_met": current_user.total_investment >= next_package.get("min_investment", 0),
+            "investment_current": current_user.total_investment,
+            "investment_required": next_package.get("min_investment", 0),
+            "direct_met": team_counts["level_1"] >= next_package.get("direct_required", 0),
+            "direct_current": team_counts["level_1"],
+            "direct_required": next_package.get("direct_required", 0),
+            "level_2_met": team_counts["level_2"] >= next_package.get("level_2_required", 0),
+            "level_2_current": team_counts["level_2"],
+            "level_2_required": next_package.get("level_2_required", 0),
+            "level_3_met": team_counts["level_3"] >= next_package.get("level_3_required", 0),
+            "level_3_current": team_counts["level_3"],
+            "level_3_required": next_package.get("level_3_required", 0),
+            "level_4_met": team_counts["level_4"] >= next_package.get("level_4_required", 0),
+            "level_4_current": team_counts["level_4"],
+            "level_4_required": next_package.get("level_4_required", 0),
+            "level_5_met": team_counts["level_5"] >= next_package.get("level_5_required", 0),
+            "level_5_current": team_counts["level_5"],
+            "level_5_required": next_package.get("level_5_required", 0),
+            "level_6_met": team_counts["level_6"] >= next_package.get("level_6_required", 0),
+            "level_6_current": team_counts["level_6"],
+            "level_6_required": next_package.get("level_6_required", 0),
+        }
+        
+        # Check if all requirements met
+        all_met = (
+            promotion_progress["investment_met"] and
+            promotion_progress["direct_met"] and
+            promotion_progress["level_2_met"] and
+            promotion_progress["level_3_met"] and
+            promotion_progress["level_4_met"] and
+            promotion_progress["level_5_met"] and
+            promotion_progress["level_6_met"]
+        )
+        promotion_progress["all_requirements_met"] = all_met
+    
     return DashboardStats(
         total_balance=total_balance,
         roi_balance=current_user.roi_balance,
@@ -551,7 +619,10 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
         direct_referrals=len(current_user.direct_referrals),
         indirect_referrals=len(current_user.indirect_referrals),
         total_commissions=total_commissions,
-        pending_withdrawals=pending_withdrawals
+        pending_withdrawals=pending_withdrawals,
+        next_level_requirements=next_level_requirements,
+        team_counts_by_level=team_counts,
+        promotion_progress=promotion_progress
     )
 
 @api_router.get("/user/team")
