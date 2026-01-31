@@ -202,6 +202,19 @@ Build a production-ready crypto investment platform called "MINEX GLOBAL" with:
 
 ## Changelog
 
+### Jan 31, 2026 (Final Pre-Deployment)
+- Fixed ROI scheduler field name issue (staking_id vs staking_entry_id)
+- Updated InvestmentPackage model with auto-generated package_id and default values
+- Enhanced User Dashboard with detailed promotion progress (level-wise team requirements)
+- Added package active/inactive toggle in Admin Packages
+- Cleaned database - removed sample packages and test data
+- Verified all critical flows working:
+  - ROI distribution (manual + automatic)
+  - Profit share from downline ROI
+  - Direct commission on deposits
+  - Password reset
+  - Email notifications via Resend
+
 ### Jan 30, 2026 (Session 2)
 - Replaced SendGrid with Resend for email sending
 - Implemented password reset functionality:
