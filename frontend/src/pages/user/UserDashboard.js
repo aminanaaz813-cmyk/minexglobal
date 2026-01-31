@@ -262,7 +262,97 @@ const UserDashboard = () => {
         {/* Next Level Progress */}
         <div className="glass rounded-xl p-5 md:p-6" data-testid="next-level-card">
           <h2 className="text-base md:text-lg font-bold text-white mb-4">Next Level Progress</h2>
-          {nextPackage ? (
+          {stats?.promotion_progress ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm md:text-base">
+                <span className="text-gray-400">Target Level</span>
+                <span className="text-xl font-bold text-gradient">Level {stats?.next_level_requirements?.level}</span>
+              </div>
+              
+              {/* Investment Requirement */}
+              <div className="flex items-center justify-between text-sm md:text-base">
+                <span className="text-gray-400">Min Investment</span>
+                <span className={`font-bold ${stats.promotion_progress.investment_met ? 'text-green-400' : 'text-yellow-400'}`}>
+                  {formatCurrency(stats.promotion_progress.investment_current)} / {formatCurrency(stats.promotion_progress.investment_required)}
+                </span>
+              </div>
+              
+              {/* Direct Referrals */}
+              {stats.promotion_progress.direct_required > 0 && (
+                <div className="flex items-center justify-between text-sm md:text-base">
+                  <span className="text-gray-400">Direct Team (Lv.1)</span>
+                  <span className={`font-bold ${stats.promotion_progress.direct_met ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {stats.promotion_progress.direct_current} / {stats.promotion_progress.direct_required}
+                  </span>
+                </div>
+              )}
+              
+              {/* Level 2 Team */}
+              {stats.promotion_progress.level_2_required > 0 && (
+                <div className="flex items-center justify-between text-sm md:text-base">
+                  <span className="text-gray-400">Lv.2 Team</span>
+                  <span className={`font-bold ${stats.promotion_progress.level_2_met ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {stats.promotion_progress.level_2_current} / {stats.promotion_progress.level_2_required}
+                  </span>
+                </div>
+              )}
+              
+              {/* Level 3 Team */}
+              {stats.promotion_progress.level_3_required > 0 && (
+                <div className="flex items-center justify-between text-sm md:text-base">
+                  <span className="text-gray-400">Lv.3 Team</span>
+                  <span className={`font-bold ${stats.promotion_progress.level_3_met ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {stats.promotion_progress.level_3_current} / {stats.promotion_progress.level_3_required}
+                  </span>
+                </div>
+              )}
+              
+              {/* Level 4 Team */}
+              {stats.promotion_progress.level_4_required > 0 && (
+                <div className="flex items-center justify-between text-sm md:text-base">
+                  <span className="text-gray-400">Lv.4 Team</span>
+                  <span className={`font-bold ${stats.promotion_progress.level_4_met ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {stats.promotion_progress.level_4_current} / {stats.promotion_progress.level_4_required}
+                  </span>
+                </div>
+              )}
+              
+              {/* Level 5 Team */}
+              {stats.promotion_progress.level_5_required > 0 && (
+                <div className="flex items-center justify-between text-sm md:text-base">
+                  <span className="text-gray-400">Lv.5 Team</span>
+                  <span className={`font-bold ${stats.promotion_progress.level_5_met ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {stats.promotion_progress.level_5_current} / {stats.promotion_progress.level_5_required}
+                  </span>
+                </div>
+              )}
+              
+              {/* Level 6 Team */}
+              {stats.promotion_progress.level_6_required > 0 && (
+                <div className="flex items-center justify-between text-sm md:text-base">
+                  <span className="text-gray-400">Lv.6 Team</span>
+                  <span className={`font-bold ${stats.promotion_progress.level_6_met ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {stats.promotion_progress.level_6_current} / {stats.promotion_progress.level_6_required}
+                  </span>
+                </div>
+              )}
+              
+              {/* All Requirements Status */}
+              <div className="border-t border-white/10 pt-4 mt-4">
+                {stats.promotion_progress.all_requirements_met ? (
+                  <div className="text-center p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <div className="text-green-400 font-bold">✓ Ready for Promotion!</div>
+                    <div className="text-xs text-gray-400 mt-1">All requirements met</div>
+                  </div>
+                ) : (
+                  <div className="text-center p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <div className="text-yellow-400 font-bold">Requirements Pending</div>
+                    <div className="text-xs text-gray-400 mt-1">Complete all requirements to level up</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : nextPackage ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm md:text-base">
                 <span className="text-gray-400">Target Level</span>
@@ -278,31 +368,6 @@ const UserDashboard = () => {
                   {stats?.direct_referrals || 0} / {nextPackage.direct_required || 0}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm md:text-base">
-                <span className="text-gray-400">Indirect Referrals</span>
-                <span className={`font-bold ${stats?.indirect_referrals >= (nextPackage.level_2_required || nextPackage.indirect_required || 0) ? 'text-green-400' : 'text-yellow-400'}`}>
-                  {stats?.indirect_referrals || 0} / {nextPackage.level_2_required || nextPackage.indirect_required || 0}
-                </span>
-              </div>
-              {nextPackage.level >= 2 && (
-                <div className="border-t border-white/10 pt-4 mt-4">
-                  <div className="text-xs text-gray-500 mb-3">Unlock Commission Rates</div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="text-center p-2 bg-blue-500/10 rounded-lg">
-                      <div className="text-base md:text-lg font-bold text-blue-400">{nextPackage.commission_direct || nextPackage.commission_lv_a || 0}%</div>
-                      <div className="text-xs text-gray-500">Direct</div>
-                    </div>
-                    <div className="text-center p-2 bg-purple-500/10 rounded-lg">
-                      <div className="text-base md:text-lg font-bold text-purple-400">{nextPackage.commission_level_2 || nextPackage.commission_lv_b || 0}%</div>
-                      <div className="text-xs text-gray-500">Lv.2</div>
-                    </div>
-                    <div className="text-center p-2 bg-violet-500/10 rounded-lg">
-                      <div className="text-base md:text-lg font-bold text-violet-400">{nextPackage.commission_level_3 || nextPackage.commission_lv_c || 0}%</div>
-                      <div className="text-xs text-gray-500">Lv.3</div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             <div className="text-center py-6">
