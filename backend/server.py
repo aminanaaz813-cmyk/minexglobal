@@ -943,7 +943,7 @@ async def create_staking(staking_data: StakingCreate, current_user: User = Depen
     end_date = datetime.now(timezone.utc) + timedelta(days=duration_days)
     
     staking_doc = {
-        "staking_entry_id": str(uuid.uuid4()),
+        "staking_id": str(uuid.uuid4()),
         "user_id": current_user.user_id,
         "package_id": staking_data.package_id,
         "amount": staking_data.amount,
@@ -971,9 +971,9 @@ async def create_staking(staking_data: StakingCreate, current_user: User = Depen
     
     # Distribute commissions to upline
     if background_tasks:
-        background_tasks.add_task(distribute_commissions, staking_doc["staking_entry_id"], current_user.user_id, staking_data.amount)
+        background_tasks.add_task(distribute_commissions, staking_doc["staking_id"], current_user.user_id, staking_data.amount)
     else:
-        await distribute_commissions(staking_doc["staking_entry_id"], current_user.user_id, staking_data.amount)
+        await distribute_commissions(staking_doc["staking_id"], current_user.user_id, staking_data.amount)
     
     # Check for level upgrade
     user = await db.users.find_one({"user_id": current_user.user_id}, {"_id": 0})
