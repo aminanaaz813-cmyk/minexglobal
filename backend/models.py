@@ -311,6 +311,10 @@ class DashboardStats(BaseModel):
     indirect_referrals: int
     total_commissions: float
     pending_withdrawals: int
+    # Promotion progress fields
+    next_level_requirements: Optional[dict] = None
+    team_counts_by_level: Optional[dict] = None
+    promotion_progress: Optional[dict] = None
 
 class AdminDashboardStats(BaseModel):
     total_users: int
