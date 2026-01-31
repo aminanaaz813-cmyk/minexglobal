@@ -202,6 +202,15 @@ Build a production-ready crypto investment platform called "MINEX GLOBAL" with:
 
 ## Changelog
 
+### Jan 31, 2026 (Critical Bug Fixes)
+- **FIXED: User level display** - Dashboard now shows correct level based on active staking package, not user's stored level
+- **FIXED: Commission distribution** - Commission rate now based on INVESTOR'S package (not upline's), and properly finds upline by referral_code
+- **FIXED: ROI scheduler field names** - Standardized to use `staking_id` throughout
+- **FIXED: Next Level Progress** - Now shows actual level-wise team requirements from database
+- Verified all flows working:
+  - Amina (aminanaaz813@gmail.com) - Level 2, $1000 investment
+  - Nexo (nexotech813@gmail.com) - Received $100 commission (10% of $1000)
+
 ### Jan 31, 2026 (Final Pre-Deployment)
 - Fixed ROI scheduler field name issue (staking_id vs staking_entry_id)
 - Updated InvestmentPackage model with auto-generated package_id and default values
