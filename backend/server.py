@@ -149,14 +149,23 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
     """
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     if not user or not user.get("referred_by"):
+        logger.info(f"No referrer found for user {user_id}")
         return
     
-    # Only distribute to DIRECT referrer (Level 1)
-    direct_referrer_id = user.get("referred_by")
+    # Get the referral code of the direct referrer
+    referrer_code = user.get("referred_by")
     
-    upline = await db.users.find_one({"user_id": direct_referrer_id}, {"_id": 0})
+    # Find the upline by their referral_code OR user_id (handle both formats)
+    upline = await db.users.find_one({"referral_code": referrer_code}, {"_id": 0})
     if not upline:
+        # Try finding by user_id as fallback
+        upline = await db.users.find_one({"user_id": referrer_code}, {"_id": 0})
+    
+    if not upline:
+        logger.warning(f"Upline not found for referral code: {referrer_code}")
         return
+    
+    logger.info(f"Found upline: {upline.get('email')} for user {user.get('email')}")
     
     upline_level = upline.get("level", 1)
     
@@ -166,17 +175,21 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
         package = await db.membership_packages.find_one({"level": upline_level, "is_active": True}, {"_id": 0})
     
     if not package:
+        logger.warning(f"No package found for upline level {upline_level}")
         return
     
     # Check if Level 1 is enabled
     levels_enabled = package.get("levels_enabled", [1, 2, 3])
-    if 1 not in levels_enabled:
+    if 1 not in levels_enabled and len(levels_enabled) > 0:
+        logger.info(f"Level 1 not enabled for package level {upline_level}")
         return
     
     # Get direct commission percentage
     commission_percentage = package.get("commission_direct", 0.0)
     if commission_percentage == 0:
         commission_percentage = package.get("commission_lv_a", 0.0)
+    
+    logger.info(f"Commission rate for level {upline_level}: {commission_percentage}%")
     
     if commission_percentage > 0:
         commission_amount = amount * (commission_percentage / 100)
@@ -201,6 +214,8 @@ async def distribute_commissions(staking_entry_id: str, user_id: str, amount: fl
             {"user_id": upline["user_id"]},
             {"$inc": {"commission_balance": commission_amount, "wallet_balance": commission_amount}}
         )
+        
+        logger.info(f"Commission distributed: ${commission_amount:.2f} to {upline.get('email')}")
         
         # Send commission notification email
         try:
