@@ -592,8 +592,8 @@ async def get_dashboard(current_user: User = Depends(get_current_user)):
         "level_6": len(referral_tree.get("level_6", []))
     }
     
-    # Get next level package requirements
-    next_level = current_user.level + 1
+    # Get next level package requirements (use actual_level from staking)
+    next_level = actual_level + 1
     next_package = await db.investment_packages.find_one({"level": next_level, "is_active": True}, {"_id": 0})
     
     next_level_requirements = None
