@@ -125,13 +125,13 @@ class VerifyResetCodeRequest(BaseModel):
 class InvestmentPackage(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
-    package_id: str
+    package_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = ""  # e.g., "Gold NFT", "Platinum NFT"
     level: int  # 1-6
     min_investment: float  # Minimum investment amount
-    max_investment: float  # Maximum investment amount
+    max_investment: float = 0.0  # Maximum investment amount
     daily_roi: float  # Daily ROI percentage
-    annual_roi: float  # Auto-calculated: daily_roi * 365
+    annual_roi: float = 0.0  # Auto-calculated from daily_roi
     duration_days: int = 365  # Investment duration
     
     # Level requirements for promotion
