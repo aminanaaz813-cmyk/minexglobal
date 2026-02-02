@@ -70,8 +70,12 @@ const StakingPage = () => {
       toast.success('Investment activated successfully! You will start earning ROI daily.');
       setSelectedPackage(null);
       setStakeAmount('');
-      loadData();
-      if (refreshUser) refreshUser();
+      
+      // Refresh user data
+      if (refreshUser) await refreshUser();
+      
+      // Redirect to dashboard after successful investment
+      navigate('/dashboard');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create investment');
     } finally {
