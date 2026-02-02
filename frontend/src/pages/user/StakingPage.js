@@ -16,13 +16,15 @@ const StakingPage = () => {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [stakeAmount, setStakeAmount] = useState('');
   const [hasDeposit, setHasDeposit] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (isInitial = false) => {
     try {
+      if (isInitial) setInitialLoading(true);
       const [packagesRes, stakesRes, depositsRes] = await Promise.all([
         investmentAPI.getPackages(),
         investmentAPI.getUserInvestments(),
@@ -35,6 +37,8 @@ const StakingPage = () => {
       setHasDeposit(approvedDeposits.length > 0);
     } catch (error) {
       toast.error('Failed to load investment data');
+    } finally {
+      if (isInitial) setInitialLoading(false);
     }
   };
 
