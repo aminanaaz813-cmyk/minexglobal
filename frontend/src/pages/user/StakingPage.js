@@ -95,6 +95,15 @@ const StakingPage = () => {
 
   return (
     <div className="space-y-6 md:space-y-8" data-testid="staking-page">
+      {initialLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading investment packages...</p>
+          </div>
+        </div>
+      ) : (
+        <>
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" data-testid="staking-title">Invest & Earn</h1>
         <p className="text-gray-400 text-sm md:text-base">Choose an investment package and earn daily ROI</p>
